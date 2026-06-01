@@ -9,12 +9,14 @@ import { getSuggestedUsers, sendRequest, pendingRequest, cancelRequest, acceptRe
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {addUserFromChat} from "@/service/chat";
+import { addUserFromChat } from "@/service/chat";
+import { getSocket } from '@/socket/socket';
 
 
 const TABS = ['Requests', 'Suggestions', 'Friends'];
 
 export default function FriendsScreen() {
+  const socket = getSocket();
   const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState('Requests');
   const [search, setSearch] = useState('');
@@ -29,40 +31,51 @@ export default function FriendsScreen() {
   const [addLoading, setAddLoading] = useState<string | null>(null);
   const [acceptLoading, setAcceptLoading] = useState<string | null>(null);
   const [friendList, setFriendList] = useState([]);
-   const [addUserLoading, setAddUserLoading] = useState<string | null >(null);
+  const [addUserLoading, setAddUserLoading] = useState<string | null>(null);
 
-    const handleAddUserFromChat = async(toId:string) => {
-      const user = await AsyncStorage.getItem("user");
-      const fromId = user ? JSON.parse(user)?._id : null;
-    try{
+  useEffect(() => {
+    if (!socket) return;
+    socket.on("unSeenFriendRequest", () => {
+      handleGetFromAnToPendingRequest();
+    })
+    return () => {
+      socket.off("unSeenFriendRequest")
+    }
+  }, []);
+
+
+  const handleAddUserFromChat = async (toId: string) => {
+    const user = await AsyncStorage.getItem("user");
+    const fromId = user ? JSON.parse(user)?._id : null;
+    try {
       setAddUserLoading(toId);
-      let obj = {senderId : fromId, receiverId:toId};
+      let obj = { senderId: fromId, receiverId: toId };
       const res = await addUserFromChat(obj);
-      if(res.status === 200){
+      if (res.status === 200) {
         Alert.alert("Add user from chat successfully.", res?.data?.message);
         router.replace("/chat");
       }
-    }catch(err:any){
+    } catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
-       Alert.alert("Add User Failed.", err?.response?.data?.message || err?.message);
-    }finally{
+      Alert.alert("Add User Failed.", err?.response?.data?.message || err?.message);
+    } finally {
       setAddLoading(null);
     }
   };
 
-  const handleGetFriends = async() => {
+  const handleGetFriends = async () => {
     const user = await AsyncStorage.getItem("user");
     const userId = user ? JSON.parse(user)?._id : null;
-    if(!userId) return;
-    try{
+    if (!userId) return;
+    try {
       const res = await getFriendUsers(userId);
-      if(res.status === 200){
-      setFriendList(res?.data?.friends)
+      if (res.status === 200) {
+        setFriendList(res?.data?.friends)
       }
     }
-    catch(err:any){
+    catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
-    
+
     }
   }
   const handlegetSuggestedUsers = async () => {
@@ -88,7 +101,7 @@ export default function FriendsScreen() {
     if (activeTab === "Requests" || friendListRefresh) {
       handleGetFromAnToPendingRequest();
     }
-    if(activeTab === "Friends" || friendListRefresh){
+    if (activeTab === "Friends" || friendListRefresh) {
       handleGetFriends();
     }
   }, [activeTab, friendListRefresh]);
@@ -104,12 +117,15 @@ export default function FriendsScreen() {
       if (res.status === 201) {
         Alert.alert("Request send Successfully.", res?.data?.message);
         setFriendListRefresh(true);
+        if (socket) {
+          socket.emit("unSeenFriendRequest", { from: fromUserId, to: userId });
+        }
       }
     }
     catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
       Alert.alert("Request send failed.", err?.response?.data?.message || err?.message || "Request send Failed.");
-    }finally{
+    } finally {
       setAddLoading(null);
     }
   };
@@ -126,25 +142,25 @@ export default function FriendsScreen() {
         setFriendListRefresh(false);
       }
     }
-    catch (err:any) {
+    catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
     }
   };
 
 
-  const handleAcceptRequest = async(id: string) => {  
-    try{
-       setAcceptLoading(id);
-       const res = await acceptRequest(id);
-       if(res.status === 200){
-         Alert.alert("Request Accept Successfully.", res?.data?.message);
-         setFriendListRefresh(true);
-       }
+  const handleAcceptRequest = async (id: string) => {
+    try {
+      setAcceptLoading(id);
+      const res = await acceptRequest(id);
+      if (res.status === 200) {
+        Alert.alert("Request Accept Successfully.", res?.data?.message);
+        setFriendListRefresh(true);
+      }
     }
-    catch(err:any){
+    catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
       Alert.alert("Request Accept Failed.", err?.response?.data?.message || err?.message);
-    }finally{
+    } finally {
       setAcceptLoading(null);
     }
   };
@@ -179,8 +195,8 @@ export default function FriendsScreen() {
           style={styles.acceptBtn}
           onPress={() => handleAcceptRequest(item._id)}
         >
-         {acceptLoading === item?._id ? <ActivityIndicator color="white" /> : <><UserCheck color={Colors.white} size={16} />
-          <Text style={styles.acceptBtnText}>Accept</Text></>}
+          {acceptLoading === item?._id ? <ActivityIndicator color="white" /> : <><UserCheck color={Colors.white} size={16} />
+            <Text style={styles.acceptBtnText}>Accept</Text></>}
         </TouchableOpacity>
           <TouchableOpacity
             style={styles.declineBtn}
@@ -192,9 +208,9 @@ export default function FriendsScreen() {
           <TouchableOpacity
             style={styles.declineBtn}
             onPress={() => declineRequest(item._id)}
-          > 
+          >
             {cancelLoading === item?._id ? <ActivityIndicator color="white" /> : <UserX color={Colors.gray400} size={16} />}
-          </TouchableOpacity> 
+          </TouchableOpacity>
         }
       </View>
     </View>
@@ -209,12 +225,12 @@ export default function FriendsScreen() {
         <Text style={styles.mutualText}>{item?.mutualFriends || 0} mutual friends</Text>
       </View>
       <TouchableOpacity style={styles.addBtn} onPress={() => { handleSendRequest(item?._id) }}>
-       {addLoading === item?._id ?<ActivityIndicator color="white" /> :<><UserPlus color={Colors.primary} size={16} />
-        <Text style={styles.addBtnText}>Add</Text></> }
+        {addLoading === item?._id ? <ActivityIndicator color="white" /> : <><UserPlus color={Colors.primary} size={16} />
+          <Text style={styles.addBtnText}>Add</Text></>}
       </TouchableOpacity>
     </View>
   );
- 
+
   const renderFriend = ({ item }: any) => (
     <View style={styles.card}>
       <Avatar uri={item?.profileImage} size={52} isOnline={item.isOnline} />
@@ -226,8 +242,8 @@ export default function FriendsScreen() {
         </Text>
       </View>
       <View style={styles.friendActions}>
-        <TouchableOpacity style={styles.msgBtn} onPress={() => {handleAddUserFromChat(item?._id)}}>
-          {addUserLoading === item?._id ? <ActivityIndicator color={"white"} / > :<Text style={styles.msgBtnText}>Message</Text>}
+        <TouchableOpacity style={styles.msgBtn} onPress={() => { handleAddUserFromChat(item?._id) }}>
+          {addUserLoading === item?._id ? <ActivityIndicator color={"white"} /> : <Text style={styles.msgBtnText}>Message</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -336,7 +352,7 @@ export default function FriendsScreen() {
       {activeTab === 'Friends' && (
         <FlatList
           data={friendList}
-          keyExtractor={(u:any) => u._id}
+          keyExtractor={(u: any) => u._id}
           renderItem={renderFriend}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

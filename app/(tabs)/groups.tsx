@@ -3,25 +3,62 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, S
 import { router } from 'expo-router';
 import { Search, Plus, Lock, Users, Globe } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
-import { getAllGroups, toggleMember } from "@/service/group";
+import { deleteGroup, getAllGroups, toggleMember } from "@/service/group";
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
-import { setGroupList, setGroupJoinAnUnJoin } from "@/redux-toolkit/slice/businessGroupSlice";
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CreateGroupModal from "@/components/forms/CreateGroupDialog";
+import { getSocket } from '@/socket/socket';
+import { setGroupList, setGroupJoinAnUnJoin, setAddAnRemoveUserGroup, setNewGroup, setDeleteGroup, setUpdateGroupDetail } from '@/redux-toolkit/slice/businessGroupSlice';
+import ConfirmDialog from '@/components/forms/ConfirmDialog';
+import AddMemberCard from '@/components/forms/AddMemberDialog';
+
 
 export default function GroupsScreen() {
+  const socket = getSocket();
   const dispatch = useAppDispatch();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(''); 
   const [loading, setLoading] = useState<string | null>(null);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [user, setUser] = useState<any | null>(null);
   const [openCreateGroup, setOpenCreateGroup] = useState(false);
+   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+   const [deleteGroupData, setDeleteGroupData] = useState<any | null>(null);
+   const [initialData, setInitialData] = useState<any>();
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const groupList = useAppSelector((state) => state?.group?.groupList);
+   const [shareCardOpen, setShareOpenCard] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const filtered = groupList?.filter(g => {
     const matchSearch = g?.title?.toLowerCase().includes(search.toLowerCase());
     return matchSearch;
   });
+
+   useEffect(() => {
+    if(!socket)return;
+    socket.on("newGroup", (group) => {
+      dispatch(setNewGroup(group));
+    });
+
+    socket.on("groupInviteAccepted", (data) => {
+      dispatch(setUpdateGroupDetail(data?.group));
+    })
+    socket.on("deleteGroup", (groupId) => {
+      dispatch(setDeleteGroup(groupId));
+    })
+
+    socket.on("addAnRemoveUserFromGroup", (data) => {
+      dispatch(setAddAnRemoveUserGroup(data));
+    })
+
+    return () => {
+      socket.off("newGroup");
+      socket.off("deleteGroup");
+      socket.off("addAnRemoveUserFromGroup");
+      socket.off("groupInviteAccepted");
+    }
+  }, [])
 
   const handleToggleMember = async (groupId: string) => {
     const userId = user?._id;
@@ -32,7 +69,6 @@ export default function GroupsScreen() {
       let obj = { groupId, userId, fullName, email, profileImage };
       setLoading(groupId);
       const res = await toggleMember(obj);
-      console.log(res?.data);
       if (res.status === 200) {
         Alert.alert("Member Join/UnJoin Successfully.", res?.data?.message);
         dispatch(setGroupJoinAnUnJoin(obj));
@@ -43,7 +79,24 @@ export default function GroupsScreen() {
     finally {
       setLoading(null);
     }
-  }
+  };
+   const handleDeleteGroup = async () => {
+    try {
+      setDeleteLoading(deleteGroupData?._id);
+      const res = await deleteGroup(deleteGroupData?._id);
+      if (res.status === 200) {
+        Alert.alert("Group Deleted Successfully.", res?.data?.message);
+        setDeleteGroupOpen(false);
+        setDeleteGroupData(null);
+      }
+    } catch (err:any) {
+      Alert.alert("Group Delete Failed.", err?.response?.data?.message || err?.message);
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+
 
   const handleGetAllGroup = async () => {
     try {
@@ -74,11 +127,45 @@ export default function GroupsScreen() {
 
   const renderGroup = ({ item }: any) => {
     const isJoined = item?.members?.some((i: any) => i?._id === user?._id);
+    const isOwner = item?.createdBy?._id === user?._id;
     return (
       <TouchableOpacity
         style={styles.groupCard}
         onPress={() => router.push({ pathname: '/group/[id]', params: { id: item?._id } } as any)}
       >
+        {isOwner && (
+  <View style={styles.menuWrapper}>
+    <TouchableOpacity
+      onPress={(e) => {e.stopPropagation();setOpenMenuId(openMenuId === item._id ? null : item._id)}}
+    >
+      <Text style={{ color: "white", fontSize: 20 }}>⋮</Text>
+    </TouchableOpacity>
+
+    {openMenuId === item._id && (
+      <View style={styles.dropdown}>
+         <TouchableOpacity
+          onPress={() => { setSelectedGroupId(item._id); setShareOpenCard(true); setOpenMenuId(null);}}
+        >
+          <Text style={styles.dropdownText}>Add Members</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { setInitialData(item); setOpenCreateGroup(true); setOpenMenuId(null);}}
+        >
+          <Text style={styles.dropdownText}>Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {setDeleteGroupData(item);setDeleteGroupOpen(true);setOpenMenuId(null);
+          }}
+        >
+          <Text style={[styles.dropdownText, { color: "red" }]}>
+           {  deleteLoading === item?._id ? <ActivityIndicator color={"red"} /> : "Delete"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )}
+  </View>
+)}
         <Image source={{ uri: item?.images?.[0] }} style={styles.groupCover} />
         <View style={styles.groupOverlay} />
         {item.isPrivate && (
@@ -116,9 +203,20 @@ export default function GroupsScreen() {
   };
   return (
     <>
+          <AddMemberCard visible={shareCardOpen} onOpenChange={setShareOpenCard} groupId={selectedGroupId} />
+     <ConfirmDialog
+        visible={deleteGroupOpen}
+        onClose={() => setDeleteGroupOpen(false)}
+        loading={deleteLoading === deleteGroupData?._id}
+        title="Delete Group"
+        description="Are you sure you want to delete this group?"
+        buttonName="Delete"
+        onConfirm={handleDeleteGroup}
+      />
       <CreateGroupModal
         visible={openCreateGroup}
         onClose={() => setOpenCreateGroup(false)}
+        initialData={initialData}
         onSubmit={(data) => {
           console.log(data);
         }}
@@ -172,6 +270,7 @@ export default function GroupsScreen() {
           renderItem={renderGroup}
           contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={() => setOpenMenuId(null)}
         />
       </View>
     </>
@@ -188,6 +287,28 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
+  menuWrapper: {
+  position: "absolute",
+  top: 10,
+  right: 10,
+  zIndex: 10,
+  alignItems: "flex-end",
+},
+
+dropdown: {
+  marginTop: 5,
+  backgroundColor: "#1f1f1f",
+  padding: 10,
+  borderRadius: 10,
+  width: 100,
+  elevation: 5,
+},
+
+dropdownText: {
+  color: "#fff",
+  paddingVertical: 6,
+  fontSize: 14,
+},
   headerTitle: {
     color: Colors.white,
     fontSize: Typography.fontSizes['2xl'],

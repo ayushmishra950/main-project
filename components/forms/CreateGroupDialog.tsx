@@ -1,35 +1,60 @@
 // components/groups/CreateGroupModal.tsx
 
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Image, ScrollView, Alert, ActivityIndicator} from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Image, ScrollView, Alert, ActivityIndicator, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import {createGroup} from "@/service/group";
+import { createGroup, updateGroup } from "@/service/group";
 
 import { Colors, Typography, BorderRadius } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAppDispatch } from "@/redux-toolkit/customHook/hook";
+import { setNewGroup } from "@/redux-toolkit/slice/businessGroupSlice";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   onSubmit?: (data: any) => void;
+  initialData?: any;
 }
 
 export default function CreateGroupModal({
   visible,
   onClose,
   onSubmit,
+  initialData,
 }: Props) {
+  const dispatch = useAppDispatch();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [images, setImages] = useState<any[]>([]);
+  const [existingImages, setExistingImages] = useState<any[]>([]);
+  const [newImages, setNewImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const isEdit = Boolean(initialData);
+
+  useEffect(() => {
+    if (initialData && visible) {
+
+      setTitle(initialData.title || "");
+      setDescription(initialData.description || "");
+
+      // existing preview
+      const existing =
+        initialData?.images?.map((url: string) => ({
+          uri: url,
+          type: url.endsWith(".mp4") ? "video" : "image",
+        })) || [];
+
+      setExistingImages(existing);
+      setNewImages([]);
+    }
+  }, [visible, initialData]);
 
   // PICK IMAGES
   const pickImages = async () => {
     try {
-      if (images.length >= 4) {
+      if (newImages.length >= 4) {
         Alert.alert("Limit Reached", "Maximum 4 images allowed.");
         return;
       }
@@ -46,13 +71,13 @@ export default function CreateGroupModal({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
         allowsMultipleSelection: true,
-        selectionLimit: 4 - images.length,
+        selectionLimit: 4 - newImages.length,
       });
 
       if (!result.canceled) {
         const selected = result.assets;
 
-        setImages((prev) => [...prev, ...selected].slice(0, 4));
+        setNewImages((prev) => [...prev, ...selected].slice(0, 4));
       }
     } catch (error) {
       console.log(error);
@@ -60,10 +85,16 @@ export default function CreateGroupModal({
   };
 
   // REMOVE IMAGE
-  const removeImage = (index: number) => {
-    const updated = [...images];
+  const removeExistingImage = (index: number) => {
+    const updated = [...existingImages];
     updated.splice(index, 1);
-    setImages(updated);
+    setExistingImages(updated);
+  };
+
+  const removeNewImage = (index: number) => {
+    const updated = [...newImages];
+    updated.splice(index, 1);
+    setNewImages(updated);
   };
 
   // SUBMIT
@@ -81,29 +112,46 @@ export default function CreateGroupModal({
     }
 
     try {
-      setLoading(true);
 
-    const formData = new FormData();
-    formData.append("title",title );
-    formData.append("description",description );
-    formData.append("createdBy",userId );
-   images.forEach((file: any, index: number) => { 
-  formData.append("media", {
-    uri: file.uri,
-    name: file.fileName || `image-${index}.jpg`,
-    type: file.mimeType || "image/jpeg",
-  } as any);
-});
-   const res = await createGroup(formData);
-   
-   if(res.status === 201 || res.status === 200){
-    Alert.alert("Group Created Successfully.", res?.data?.message);
-       setTitle("");
-      setDescription("");
-      setImages([]);
-      onClose();
-   }
-    } catch (error:any) {
+
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("createdBy", userId);
+      if (isEdit) {
+        formData.append("id", initialData?._id);
+      }
+      const allImages = [
+        ...existingImages,
+        ...newImages
+      ];
+
+      allImages.forEach((file, index) => {
+        if (file.uri) {
+          const mimeType =
+            file.mimeType ||
+            (file.uri.endsWith(".png") ? "image/png" : "image/jpeg");
+
+          formData.append("media", {
+            uri: file.uri,
+            name: file.fileName || `image-${index}.jpg`,
+            type: mimeType,
+          } as any);
+        }
+      });
+      setLoading(true);
+      const res = await (isEdit ? updateGroup(formData) : createGroup(formData));
+
+      if (res.status === 201 || res.status === 200) {
+        Alert.alert("Group Created Successfully.", res?.data?.message);
+        dispatch(setNewGroup(res.data.group));
+        setTitle("");
+        setDescription("");
+        setExistingImages([]);
+        setNewImages([]);
+        onClose();
+      }
+    } catch (error: any) {
       console.log(error?.reponse?.data?.message);
       Alert.alert("Group Create Failed.", error?.response?.data?.message || error?.message);
     } finally {
@@ -122,7 +170,7 @@ export default function CreateGroupModal({
         <View style={styles.container}>
           {/* HEADER */}
           <View style={styles.header}>
-            <Text style={styles.heading}>Create Group</Text>
+            <Text style={styles.heading}>{isEdit ? "Update Group" : "Create Group"}</Text>
 
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color="#fff" />
@@ -164,7 +212,7 @@ export default function CreateGroupModal({
                 <Text style={styles.label}>Images</Text>
 
                 <Text style={styles.countText}>
-                  {images.length}/4
+                  {existingImages.length + newImages.length}/4
                 </Text>
               </View>
 
@@ -185,7 +233,7 @@ export default function CreateGroupModal({
 
               {/* PREVIEW */}
               <View style={styles.previewContainer}>
-                {images.map((img, index) => (
+                {existingImages.map((img, index) => (
                   <View key={index} style={styles.previewWrapper}>
                     <Image
                       source={{ uri: img.uri }}
@@ -194,7 +242,26 @@ export default function CreateGroupModal({
 
                     <TouchableOpacity
                       style={styles.removeBtn}
-                      onPress={() => removeImage(index)}
+                      onPress={() => removeExistingImage(index)}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={14}
+                        color="#fff"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {newImages.map((img, index) => (
+                  <View key={index} style={styles.previewWrapper}>
+                    <Image
+                      source={{ uri: img.uri || img.url }}
+                      style={styles.previewImage}
+                    />
+
+                    <TouchableOpacity
+                      style={styles.removeBtn}
+                      onPress={() => removeNewImage(index)}
                     >
                       <Ionicons
                         name="close"
@@ -214,14 +281,14 @@ export default function CreateGroupModal({
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={ loading ? ["#666", "#666"] : Colors.gradients.primary }
+                colors={loading ? ["#666", "#666"] : Colors.gradients.primary}
                 style={styles.button}
-                 >
+              >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.buttonText}>
-                    Create Group
+                    {isEdit ? "Update Group" : "Create Group"}
                   </Text>
                 )}
               </LinearGradient>

@@ -1,73 +1,196 @@
-import { io, Socket } from "socket.io-client";
-import api from "@/axios/axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// import { io, Socket } from "socket.io-client";
+// import api from "@/axios/axios";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_BACKEND_SOCKET_URL;
+// const SOCKET_URL = process.env.EXPO_PUBLIC_BACKEND_SOCKET_URL;
+
+// let socket: Socket | null = null;
+// let isRefreshing = false;
+
+// export const initSocket = async () => {
+//   if (socket) {
+//     console.log("♻️ Socket already exists");
+//     return socket;
+//   }
+
+//   console.log("🚀 Initializing socket...");
+
+//   const token = await AsyncStorage.getItem("accessToken");
+
+//   socket = io(SOCKET_URL, {
+//     transports: ["websocket"], // ⚠️ force websocket (remove polling for debugging)
+//     auth: {
+//       token: token || ""
+//     },
+//     reconnection: true,
+//     timeout: 10000,
+//   });
+
+//   // =====================
+//   // CONNECT SUCCESS
+//   // =====================
+//   socket.on("connect", () => {
+//     console.log("✅ SOCKET CONNECTED");
+//     console.log("🆔 Socket ID:", socket?.id);
+//   });
+
+//   // =====================
+//   // DISCONNECT
+//   // =====================
+//   socket.on("disconnect", (reason) => {
+//     console.log("❌ SOCKET DISCONNECTED:", reason);
+//   });
+
+//   // =====================
+//   // CONNECT ERROR
+//   // =====================
+//   socket.on("connect_error", async (err) => {
+//     console.log("🚨 CONNECT ERROR:", err.message);
+
+//     if (err.message?.includes("TokenExpired") && !isRefreshing) {
+//       isRefreshing = true;
+
+//       try {
+//         const res = await api.post("/user/auth/refresh", {}, {
+//           withCredentials: false
+//         });
+
+//         const newToken = res.data.accessToken;
+
+//         await AsyncStorage.setItem("accessToken", newToken);
+
+//         console.log("🔄 Token refreshed, reconnecting...");
+
+//         socket?.disconnect();
+//         if(!socket)return;
+//         socket.auth = { token: newToken };
+
+//         socket?.connect();
+//       } catch (e) {
+//         console.log("❌ Refresh failed → logout needed");
+//       } finally {
+//         isRefreshing = false;
+//       }
+//     }
+//   });
+
+//   return socket;
+// };
+
+// // SAFE ACCESS METHOD
+// export const getSocket = () => {
+//   if (!socket) {
+//     console.log("⚠️ Socket not initialized yet");
+//   }
+//   return socket;
+// };
+
+
+
+
+
+
+
+
+
+
+
+
+import { io, Socket } from "socket.io-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "@/axios/axios";
+
+const SOCKET_URL = process.env.EXPO_PUBLIC_BACKEND_SOCKET_URL!;
 
 let socket: Socket | null = null;
 let isRefreshing = false;
 
-export const initSocket = async () => {
-  if (socket) {
-    console.log("♻️ Socket already exists");
+export const initSocket = async (): Promise<Socket> => {
+  if (socket?.connected) {
     return socket;
   }
-
-  console.log("🚀 Initializing socket...");
 
   const token = await AsyncStorage.getItem("accessToken");
 
   socket = io(SOCKET_URL, {
-    transports: ["websocket"], // ⚠️ force websocket (remove polling for debugging)
     auth: {
-      token: token || ""
+      token: token || "",
     },
+
+    // websocket force mat karo
+    transports: ["polling", "websocket"],
+
     reconnection: true,
-    timeout: 10000,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    autoConnect: true,
   });
 
-  // =====================
-  // CONNECT SUCCESS
-  // =====================
   socket.on("connect", () => {
-    console.log("✅ SOCKET CONNECTED");
+    console.log("✅ Socket Connected");
     console.log("🆔 Socket ID:", socket?.id);
   });
 
-  // =====================
-  // DISCONNECT
-  // =====================
   socket.on("disconnect", (reason) => {
-    console.log("❌ SOCKET DISCONNECTED:", reason);
+    console.log("❌ Socket Disconnected:", reason);
   });
 
-  // =====================
-  // CONNECT ERROR
-  // =====================
-  socket.on("connect_error", async (err) => {
-    console.log("🚨 CONNECT ERROR:", err.message);
+  socket.io.on("reconnect_attempt", (attempt) => {
+    console.log("🔄 Reconnect Attempt:", attempt);
+  });
 
-    if (err.message?.includes("TokenExpired") && !isRefreshing) {
+  socket.io.on("reconnect", (attempt) => {
+    console.log("✅ Reconnected:", attempt);
+  });
+
+  socket.io.on("reconnect_error", (err) => {
+    console.log("❌ Reconnect Error:", err);
+  });
+
+  socket.io.on("reconnect_failed", () => {
+    console.log("🚨 Reconnect Failed");
+  });
+
+  socket.on("connect_error", async (err: any) => {
+    console.log("🚨 Connect Error:", err.message);
+
+    if (
+      err.message?.includes("TokenExpired") &&
+      !isRefreshing
+    ) {
       isRefreshing = true;
 
       try {
-        const res = await api.post("/user/auth/refresh", {}, {
-          withCredentials: false
-        });
+        console.log("🔄 Refreshing token...");
+
+        const res = await api.post(
+          "/user/auth/refresh",
+          {},
+          {
+            withCredentials: false,
+          }
+        );
 
         const newToken = res.data.accessToken;
 
-        await AsyncStorage.setItem("accessToken", newToken);
+        await AsyncStorage.setItem(
+          "accessToken",
+          newToken
+        );
 
-        console.log("🔄 Token refreshed, reconnecting...");
+        if (socket) {
+          socket.auth = {
+            token: newToken,
+          };
 
-        socket?.disconnect();
-        if(!socket)return;
-        socket.auth = { token: newToken };
+          socket.connect();
+        }
 
-        socket?.connect();
-      } catch (e) {
-        console.log("❌ Refresh failed → logout needed");
+        console.log("✅ Token Refreshed");
+      } catch (error) {
+        console.log("❌ Refresh Failed");
       } finally {
         isRefreshing = false;
       }
@@ -77,10 +200,12 @@ export const initSocket = async () => {
   return socket;
 };
 
-// SAFE ACCESS METHOD
-export const getSocket = () => {
-  if (!socket) {
-    console.log("⚠️ Socket not initialized yet");
+export const getSocket = () => socket;
+
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
   }
-  return socket;
 };

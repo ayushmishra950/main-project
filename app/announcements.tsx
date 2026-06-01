@@ -6,14 +6,27 @@ import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import { ANNOUNCEMENTS } from '@/data/dummyData';
 import {getAllAnnouncement} from "@/service/announcement";
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
-import {setAnnouncementList} from "@/redux-toolkit/slice/announcementSlice";
+import {setAnnouncementList, setNewAnnouncement} from "@/redux-toolkit/slice/announcementSlice";
+import { getSocket } from '@/socket/socket';
 
 export default function AnnouncementsScreen() {
+  const socket = getSocket();
   const dispatch = useAppDispatch();
   const pinned = ANNOUNCEMENTS.filter(a => a.isPinned);
   const regular = ANNOUNCEMENTS.filter(a => !a.isPinned);
   const announcementList = useAppSelector((state) => state?.announcement?.announcementList);
  const highPriorityCount = announcementList?.filter((item) => item?.priority === "high")?.length || 0;
+
+
+  useEffect(()=>{
+    if(!socket) return;
+    socket.on("announcement", (data) => {
+      dispatch(setNewAnnouncement(data));
+    });
+    return () => {
+        socket.off("announcement");
+    }
+  },[])
 
   const handleGetAllAnnouncement = async() => {
     try{

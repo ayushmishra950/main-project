@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { router } from 'expo-router';
-import { Search, CreditCard as Edit } from 'lucide-react-native';
+import { Search, CreditCard as Edit, Check, X } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import Avatar from '@/components/ui/Avatar';
 import { CHATS, GROUP_CHATS } from '@/data/dummyData';
@@ -9,16 +9,105 @@ import { getChatUsers, sendMessage, getMessages, rejectGroupInvite, acceptGroupI
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setMessageList, setMessageRefresh, setNewMessageAdd, setAcceptedInvite, setGroupInvited, setRejectGroupInvite, setUnreadCountRemove, setUserChatList } from '@/redux-toolkit/slice/chatSlice';
-
+import {Alert} from "react-native";
+import { getSocket } from '@/socket/socket';
 
 export default function ChatScreen() {
+  const socket = getSocket();
   const dispatch = useAppDispatch();
   const [search, setSearch] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
   const userList = useAppSelector((state) => state?.chat?.userChatList);
   const [user, setUser] = useState<any | null>();
   const filteredChats = userList?.filter((item) => item?.isGroup === false && item.friend?.fullName?.toLowerCase().includes(search.toLowerCase()));
-  const filteredGroups = userList?.filter((item) => item?.isGroup === true && item.title?.toLowerCase().includes(search.toLowerCase()));
+  const filteredGroups = userList?.filter((item) => item?.isGroup === true && item?.group?.title?.toLowerCase().includes(search.toLowerCase()));
+  
+
+   useEffect(() => {
+    if(!socket) return;
+   
+    socket.on("typingChat", () => {
+      setIsTyping(true);
+
+      setTimeout(() => {
+        setIsTyping(false);
+      }, 3000);
+    });
+
+    socket.on("groupInvite", (data) => {
+      handleGetFriendList();
+    })
+
+    socket.on("groupInviteAccepted", (data) => {
+      dispatch(setAcceptedInvite(data));
+    })
+
+    socket.on("userOnline", (userId: string) => {
+      setOnlineUsers(prev => [...prev, userId]);
+    });
+    socket.on("onlineUsersList", (users: string[]) => {
+      setOnlineUsers(users);
+    });
+    socket.on("userOffline", (userId: string) => {
+      setOnlineUsers(prev => prev.filter(id => id !== userId));
+    });
+
+
+    return () => {
+      socket.off("messageRefresh");
+      socket.off("typingChat");
+      socket.off("userOnline");
+      socket.off("userOffline");
+      socket.off("onlineUsersList");
+      socket.off("userOffline");
+      socket.off("messageSeen");
+      socket.off("userListUnReadChatCount");
+      socket.off("groupInvite");
+      socket.off("groupInviteAccepted");
+    }
+  }, [])
+
+   const handleAcceptGroupInvite = async (chatId: string, userId: string) => {
+    try {
+      setAcceptLoading(true);
+      const res = await acceptGroupInvite({ chatId, userId });
+      if (res.status === 200 || res.status === 201) {
+        dispatch(setAcceptedInvite({ chatId, userId }));
+       Alert.alert("Group invite accepted successfully.", res?.data?.message);
+      } else {
+        Alert.alert("Failed to accept group invite", res?.data?.message || "invite accepted failed");
+      }
+    } catch (err: any) {
+      console.log(err);
+      Alert.alert("Failed to accept group invite", err?.response?.data?.message || err?.message);
+    } finally {
+      setAcceptLoading(false);
+    }
+  };
+
+  const handleRejectGroupInvite = async (chatId: string, userId: string) => {
+    try {
+      setRejectLoading(true);
+      const res = await rejectGroupInvite({ chatId, userId });
+      if (res.status === 200 || res.status === 201) {
+        Alert.alert("Group invite rejected successfully.", res?.data?.message);
+        // setActiveChat(null);
+        dispatch(setRejectGroupInvite({ chatId, userId }));
+      } else {
+        Alert.alert("Failed to reject group invite", res?.data?.message || "invite rejected failed");
+      }
+    } catch (err: any) {
+      console.log(err);
+      Alert.alert("Failed to reject group invite", err?.response?.data?.message || err?.message);
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
 
   const handleGetFriendList = async () => {
     const userData = await AsyncStorage.getItem("user");
@@ -72,7 +161,7 @@ export default function ChatScreen() {
             {item?.isTyping ? (
               <Text style={styles.typingText}>typing...</Text>
             ) : (
-              "hii"
+             item?.lastMessage?.text 
               // item?.lastMessage
             )}
           </Text>
@@ -87,16 +176,13 @@ export default function ChatScreen() {
   );
 
 
-  const renderGroupChat = ({ item }: any) => (
+  const renderGroupChat = ({ item }: any) =>{
+    const isPending = item?.pendingMembers?.some((id:string) => id.toString() === user?._id);
+    return (
     <TouchableOpacity
       style={styles.chatRow}
       onPress={() =>
-        router.push({
-          pathname: '/group-chat/[id]',
-          params: { id: item?._id },
-        } as any)
-      }
-    >
+        router.push({ pathname: '/chat/[id]', params: { id: item?.chatId },} as any)} >
       <Avatar uri={item?.group?.images?.[0]} size={54} />
 
       <View style={styles.chatInfo}>
@@ -124,15 +210,37 @@ export default function ChatScreen() {
             {/* {item?.lastMessage} */}
           </Text>
 
-          {item?.unread > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{item?.unread}</Text>
-            </View>
-          )}
+         {isPending ? (
+  <View style={styles.pendingActions}>
+    <TouchableOpacity
+      style={styles.acceptBtn}
+      onPress={() =>
+        handleAcceptGroupInvite(item?.chatId, user?._id)
+      }
+    >
+      <Check size={16} color="#22C55E" />
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      style={styles.rejectBtn}
+      onPress={() =>
+        handleRejectGroupInvite(item?.chatId, user?._id)
+      }
+    >
+      <X size={16} color="#EF4444" />
+    </TouchableOpacity>
+  </View>
+) : (
+  item?.unread > 0 && (
+    <View style={styles.unreadBadge}>
+      <Text style={styles.unreadText}>{item?.unread}</Text>
+    </View>
+  )
+)}
         </View>
       </View>
     </TouchableOpacity>
-  );
+  )};
 
   return (
     <View style={styles.container}>
@@ -199,7 +307,7 @@ export default function ChatScreen() {
           <FlatList
             data={filteredGroups}
             renderItem={renderGroupChat}
-            keyExtractor={(item) => item?._id}
+            keyExtractor={(item) => item?.chatId}
             ListEmptyComponent={() => (
               <View style={styles?.emptyContainer}>
                 <Text style={styles?.emptyText}>No Groups Found.</Text>
@@ -237,6 +345,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  pendingActions: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+},
+
+acceptBtn: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: "rgba(34,197,94,0.15)",
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+rejectBtn: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: "rgba(239,68,68,0.15)",
+  justifyContent: "center",
+  alignItems: "center",
+},
 
   tabButton: {
     flex: 1,

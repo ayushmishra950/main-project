@@ -32,18 +32,18 @@ const groupSlice = createSlice({
       }
     },
     setNewGroup: (state, action: PayloadAction<any>) => {
-      // const newGroup = action.payload;
+      const newGroup = action.payload;
 
-      // const index = state.groupList.findIndex(
-      //   (group: any) => group._id === newGroup._id
-      // );
+      const index = state.groupList.findIndex(
+        (group: any) => group._id === newGroup._id
+      );
 
-      // if (index !== -1) {
-      //   state.groupList[index] = newGroup;
-      // }
-      // else {
-      //   state.groupList.unshift(newGroup);
-      // }
+      if (index !== -1) {
+        state.groupList[index] = newGroup;
+      }
+      else {
+        state.groupList.unshift(newGroup);
+      }
     },
 
     setDeleteGroup: (state, action: PayloadAction<string>) => {
@@ -59,16 +59,16 @@ const groupSlice = createSlice({
       }
     },
     setUpdateGroup: (state, action: PayloadAction<any>) => {
-      // const group = state.groupList.find(
-      //   g => g._id === action.payload._id
-      // );
+      const group = state.groupList.find(
+        g => g._id === action.payload._id
+      );
 
-      // if (group) {
-      //   // ✅ update members array
-      //   if (action.payload.members) {
-      //     group.members = action.payload.members;
-      //   }
-      // }
+      if (group) {
+        // ✅ update members array
+        if (action.payload.members) {
+          group.members = action.payload.members;
+        }
+      }
     },
 
     setUpdateGroupDetail: (state, action: PayloadAction<any>) => {

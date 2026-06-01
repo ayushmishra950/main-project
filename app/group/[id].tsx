@@ -11,10 +11,16 @@ import PostCard from '@/components/feed/PostCard';
 import { GROUPS, POSTS, GALLERY_IMAGES } from '@/data/dummyData';
 import {getGroupById} from "@/service/group";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSocket } from '@/socket/socket';
+import { useAppDispatch } from '@/redux-toolkit/customHook/hook';
+import { setGroupList, setGroupJoinAnUnJoin, setUpdateGroupDetail } from '@/redux-toolkit/slice/businessGroupSlice';
+
 
 const TABS = ['Members'];
 
 export default function GroupDetailScreen() {
+  const dispatch = useAppDispatch();
+  const socket = getSocket();
   const { id } = useLocalSearchParams<{ id: string }>();
   const group = GROUPS.find(g => g.id === id) || GROUPS[0];
   const [activeTab, setActiveTab] = useState('Members');
@@ -24,11 +30,21 @@ export default function GroupDetailScreen() {
 
   const formatCount = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toString();
 
+    useEffect(() => {
+      if(!socket)return;
+        socket.on("addMembersToGroup", (data) => {
+            dispatch(setUpdateGroupDetail(data));
+        });
+
+        return () => {
+            socket.off("addMembersToGroup");
+        };
+    }, [dispatch]);
+
   const handleGetGroupDetail = async() => {
     if(!id) return;
      try{
        const res = await getGroupById(id);
-       console.log(res?.data?.group);
        if(res.status === 200){
          setGroup(res?.data?.group);
        }

@@ -8,10 +8,11 @@ import GradientButton from '@/components/ui/GradientButton';
 import { useApp } from '@/context/AppContext';
 import {loginUser} from "@/service/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSocket } from '@/socket/socket';
 
 
 export default function LoginScreen() {
-
+   const socket = getSocket();
   const { setAuthenticated } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,9 +31,14 @@ export default function LoginScreen() {
      if(res.status === 200){
        await AsyncStorage.setItem("accessToken", res?.data?.accessToken);
         await AsyncStorage.setItem("user", JSON.stringify(res?.data?.data));
+        if(socket){
+          socket.emit("joinRoom", res?.data?.data?._id);
+        }
        setAuthenticated(true);
       router.replace('/(tabs)');
       setError('');
+      setEmail('');
+      setPassword('');
      }  
     }catch(err:any){ 
       console.log('Login error:', err?.response?.data?.message || err?.message); 

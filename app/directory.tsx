@@ -5,10 +5,12 @@ import { ArrowLeft, Search, Star, MapPin, Phone, Globe, ChevronRight, ListFilter
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import { DIRECTORY_ITEMS } from '@/data/dummyData';
 import {getAllUser} from "@/service/auth";
+import { getSocket } from '@/socket/socket';
 
 const CATEGORIES = ['All', 'Design', 'Fitness', 'Food', 'Tech', 'Services'];
 
 export default function DirectoryScreen() {
+  const socket = getSocket();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
    const [businesses, setBusinesses] = useState<any[]>([]);
@@ -33,6 +35,21 @@ export default function DirectoryScreen() {
 
     return matchesSearch && matchesCategory;
   });
+
+
+   useEffect(() => {
+    if (!socket) return;
+    socket.on("businessVerify", () => {
+      handleGetAllUser();
+    });
+    socket.on("businessUpdate", () => {
+      handleGetAllUser();
+    });
+    return () => {
+      socket.off("businessVerify");
+      socket.off("businessUpdate");
+    }
+  }, []);
 
    const handleGetAllUser = async () => {
     try {

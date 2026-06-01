@@ -1,26 +1,93 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, TextInput, StyleSheet, Modal} from 'react-native';
 import { X, Send, Search } from 'lucide-react-native';
 import Avatar from '@/components/ui/Avatar';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import { USERS } from '@/data/dummyData';
+import { getAllUser } from '@/service/auth';
+import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
+import { setUserList } from '@/redux-toolkit/slice/userSlice';
+import { sharePost } from '@/service/post';
+import {Alert} from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setUserChatList } from '@/redux-toolkit/slice/chatSlice';
+import { getChatUsers } from '@/service/chat';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  post: any;
 }
 
-export default function ShareModal({ visible, onClose }: Props) {
+export default function ShareModal({ visible, onClose, post }: Props) {
+  const dispatch = useAppDispatch();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<"single" | "group">('group');
+ const friendList = useAppSelector((state) => state?.chat?.userChatList);
 
-  const filtered = USERS.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase())
-  );
+   const filtered = useMemo(() => {
+        return friendList
+            ?.filter(item => item.isGroup === (activeTab === "group"))
+            ?.filter(item => {
+                if (!search) return true;
+
+                const name = item.isGroup
+                    ? item?.group?.title
+                    : item?.friend?.fullName;
+
+                return name?.toLowerCase().includes(search.toLowerCase());
+            });
+    }, [friendList, activeTab, search]);
+
 
   const toggle = (id: string) => {
     setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
+
+   const handleSharePost = async () => {
+        if (!user?._id || !post?._id || !selected.length) return;
+        try {
+            const obj = { fromId: user?._id, toId: selected, postId: post?._id, activeTab: activeTab };
+            const res = await sharePost(obj);
+            if (res.status === 200) {
+                Alert.alert("Post Shared", res?.data?.message || "The post has been shared successfully.");
+                onClose();
+            }
+        } catch (err: any) {
+            Alert.alert("Share Failed", err?.response?.data?.message || err?.message || "An error occurred while sharing the post.");
+        }
+    };
+
+   const handleGetFriendList = async () => {
+        if (!user?._id) return;
+        try {
+            const res = await getChatUsers(user?._id);
+            if (res.status === 200) {
+                dispatch(setUserChatList(res?.data?.friends));
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    };
+
+    useEffect(() => {
+        if (visible && (!friendList?.length || user?._id)) {
+            handleGetFriendList();
+        }
+    }, [visible, user?._id]);
+
+    useEffect(() => {
+      const getUser = async() => {
+        const userData = await AsyncStorage.getItem("user");
+        setUser(userData ? JSON.parse(userData) : null);
+      };
+      if(user === null){
+        getUser();
+      }
+    },[user]);
+  
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -45,17 +112,17 @@ export default function ShareModal({ visible, onClose }: Props) {
             />
           </View>
 
-          <FlatList
+          <FlatList 
             data={filtered}
-            keyExtractor={u => u.id}
+            keyExtractor={(u:any) => u?._id}
             renderItem={({ item }) => {
-              const isSel = selected.includes(item.id);
+              const isSel = selected.includes(item?._id);
               return (
-                <TouchableOpacity style={styles.userRow} onPress={() => toggle(item.id)}>
-                  <Avatar uri={item.avatar} size={44} isOnline={item.isOnline} />
+                <TouchableOpacity style={styles.userRow} onPress={() => toggle(item?._id)}>
+                  <Avatar uri={item?.friend?.profileImage || item?.group?.images?.[0]} size={44} isOnline={item?.isOnline} />
                   <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.userName}>{item.name}</Text>
-                    <Text style={styles.userHandle}>{item.username}</Text>
+                    <Text style={styles.userName}>{item?.friend?.fullName || item?.group?.title}</Text>
+                    <Text style={styles.userHandle}>{item?.friend?.fullName || item?.group?.title}</Text>
                   </View>
                   <View style={[styles.checkCircle, isSel && styles.checkCircleActive]}>
                     {isSel && <Send color={Colors.white} size={12} />}
@@ -176,3 +243,5 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.semibold,
   },
 });
+
+

@@ -24,8 +24,7 @@ export default function EventDetailScreen() {
   const [user, setUser] = useState<any | null>(null);
    const [loading, setLoading] = useState<boolean>(false);
    const eventStatus = event?.date ? getEventStatus(event.date) : "upcoming";
-const isPast = eventStatus === "past";
-
+   const isPast = eventStatus === "past";
 
    const eventDate = new Date(event?.date)?.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     const eventTime = new Date(event?.date)?.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })

@@ -9,12 +9,14 @@ import Avatar from '@/components/ui/Avatar';
 import { getEvent } from "@/service/event";
 import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
-import { setEventList, setInterestedOrNotInterestedCandidate } from "@/redux-toolkit/slice/eventSlice";
+import { setEventList, setInterestedOrNotInterestedCandidate, setNewEvent } from "@/redux-toolkit/slice/eventSlice";
 import { getEventStatus } from "@/service/global";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { interestedOrNotInterestedFromEvent } from "@/service/event";
+import { getSocket } from '@/socket/socket';
 
 export default function EventsScreen() {
+  const socket = getSocket();
   const dispatch = useAppDispatch();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -28,6 +30,16 @@ export default function EventsScreen() {
     return matchSearch && matchCat;
   });
   const categoryList = [...new Set(eventList?.map((e) => e?.category))];
+
+  useEffect(() => {
+    if(!socket)return;
+    socket.on("event", (data:any) => {
+      dispatch(setNewEvent(data));
+    })
+    return () => {
+      socket.off("event")
+    }
+  }, []);
 
   useEffect(() => {
     const getUser = async () => {
@@ -46,6 +58,9 @@ export default function EventsScreen() {
       if (res.status === 200) {
         Alert.alert("Event Join Successfully.", res?.data?.message);
         dispatch(setInterestedOrNotInterestedCandidate(obj));
+        if(socket) {
+           socket.emit("interestedcandidateFromEvent", obj);
+        }
       }
     } catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);

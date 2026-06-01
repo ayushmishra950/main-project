@@ -10,8 +10,11 @@ import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook'
 import { getMessages, sendMessage } from "@/service/chat";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSocket } from '@/socket/socket';
-import { setMessageList, setMessageRefresh, setNewMessageAdd } from '@/redux-toolkit/slice/chatSlice';
+import { setExitUserFromGroup, setMessageList, setMessageRefresh, setNewMessageAdd, setOfflineUser } from '@/redux-toolkit/slice/chatSlice';
 import * as ImagePicker from 'expo-image-picker';
+import { exitMemberFromGroup } from '@/service/group';
+import ConfirmDialog from '@/components/forms/ConfirmDialog';
+
 
 export default function ChatDetailScreen() {
   const socket = getSocket();
@@ -23,13 +26,40 @@ export default function ChatDetailScreen() {
   const [user, setUser] = useState<any | null>();
   const [loading, setLoading] = useState<boolean>(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);  
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [deleteGroupData, setDeleteGroupData] = useState<any>(null);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const userList = useAppSelector((state) => state?.chat?.userChatList);
   const chatUserData = userList.find((u) => u?.chatId === id);
   const messageList = useAppSelector((state) => state?.chat?.messageList);
   const flatRef = useRef<FlatList>(null);
+
+  const handleDeleteUser = () => {
+  console.log("Delete User");
+};
+
+ const handleExitGroup = async () => {
+    try {
+      setDeleteLoading(deleteGroupData?._id);
+      const res = await exitMemberFromGroup({ chatId: id, userId: user?._id });
+      if (res.status === 200 || res.status === 201) {
+          Alert.alert(`${deleteGroupData?.isGroup ? "Exit Group" : "Leave Chat"}`, res?.data?.message || "You have exited the group successfully");
+        setDeleteGroupData(null);
+        setDeleteGroupOpen(false);
+        dispatch(setExitUserFromGroup({ chatId: id , userId: user?._id}));
+        router.replace('/(tabs)/chat');
+      }
+    } catch (err:any) {
+      console.log(err);
+        Alert.alert("Failed to Exit Group.", err?.response?.data?.message || err?.message || "An error occurred");
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
 
   const handleScroll = (event: any) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -41,18 +71,17 @@ export default function ChatDetailScreen() {
   };
 
   const pickMedia = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 0.8,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.8});
 
     if (!result.canceled) {
       const file = result.assets[0];
 
+      const mimeType = file.mimeType || (file.uri.endsWith(".png") ? "image/png" : "image/jpeg");
+
       setSelectedFile({
         uri: file.uri,
-        name: file.fileName || "file.jpg",
-        type: file.type || "image/jpeg",
+        name: file.fileName || "photo.jpg",
+        type: mimeType,
       });
 
       setPreviewUrl(file.uri);
@@ -76,16 +105,21 @@ export default function ChatDetailScreen() {
       }, 3000);
     });
 
+     socket.on("userOffline", ({ userId }) => {
+      if(chatUserData?.isGroup === false){
+     dispatch(setOfflineUser({ userId }));
+      }
+    });
 
     socket.on("messageSeen", (data: any) => {
       if (data?.chatId === id) {
         dispatch(setMessageList(data?.messages));
       }
     });
-
     return () => {
       socket.off("messageRefresh");
       socket.off("messageSeen");
+      socket.off("userOffline");
     }
   }, []);
 
@@ -122,7 +156,7 @@ export default function ChatDetailScreen() {
       setUser(user);
     };
     getUser();
-  }, [user]);
+  }, []);
 
   const handleSendMessage = async () => {
     if (!text.trim() && !selectedFile) return;
@@ -132,17 +166,21 @@ export default function ChatDetailScreen() {
     form.append("text", text || "");
 
     if (selectedFile) {
-      form.append("image", {
+      const fileToUpload = {
         uri: selectedFile.uri,
         name: selectedFile.name,
         type: selectedFile.type,
-      } as any);
+      } as any;
+
+      form.append("image", fileToUpload);
     }
     setLoading(true);
     try {
       const res = await sendMessage(form);
       if (res.status === 201) {
         setText("");
+        setSelectedFile(null);
+        setPreviewUrl("");
       }
     }
     catch (err: any) {
@@ -153,7 +191,7 @@ export default function ChatDetailScreen() {
     }
   };
 
-  const renderMessage = ({ item, index }: any) => {
+  const renderSingleMessage = ({ item, index }: any) => {
     const isSent = item?.sender?._id === user?._id;
     const prevMsg = messageList[index - 1];
     const prevIsSent = prevMsg?.sender?._id === user?._id;
@@ -183,26 +221,24 @@ export default function ChatDetailScreen() {
             ]}
           >
             {/* ====== IF IMAGES EXIST ====== */}
-            { item?.images && item.images.length > 0 ? (
-            item.images.map((imgUrl: string, idx: number) => (
-              <Image
-                key={idx}
-                source={{ uri: imgUrl }}
-                style={styles.msgImage}
-              />
-            ))
-          ) : (
-            <Text
-              style={[
-                styles.msgText,
-                isSent && styles.msgTextSent,
-              ]}
-            >
-              {item?.text}
-            </Text>
-          )}
-
-           
+            {item?.images && item.images.length > 0 ? (
+              item.images.map((imgUrl: string, idx: number) => (
+                <Image
+                  key={idx}
+                  source={{ uri: imgUrl }}
+                  style={styles.msgImage}
+                />
+              ))
+            ) : (
+              <Text
+                style={[
+                  styles.msgText,
+                  isSent && styles.msgTextSent,
+                ]}
+              >
+                {item?.text}
+              </Text>
+            )}
 
             <Text
               style={[
@@ -220,7 +256,87 @@ export default function ChatDetailScreen() {
       </View>
     );
   };
+
+
+  
+  const renderGroupMessage = ({ item, index }: any) => {
+    const isSent = item?.sender?._id === user?._id;
+    const prevMsg = messageList[index - 1];
+    const prevIsSent = prevMsg?.sender?._id === user?._id;
+    const showAvatar = !isSent && (!prevMsg || prevIsSent);
+
+    return (
+      <View>
+        <View style={[styles.msgRow, isSent && styles.msgRowSent]}>
+        {!isSent && (
+  <View style={styles.msgAvatarArea}>
+    {showAvatar ? (
+      <>
+        <Avatar
+          uri={item?.sender?.profileImage}
+          size={28}
+        />
+
+        <Text
+          numberOfLines={1}
+          style={styles.groupUserName}
+        >
+          {item?.sender?.fullName}
+        </Text>
+      </>
+    ) : (
+      <View style={{ width: 28 }} />
+    )}
+  </View>
+)}
+          {/* ====== MESSAGE CONTENT ====== */}
+          <View
+            style={[
+              styles.bubble,
+              isSent ? styles.bubbleSent : styles.bubbleReceived,
+            ]}
+          >
+            {/* ====== IF IMAGES EXIST ====== */}
+            {item?.images && item.images.length > 0 ? (
+              item.images.map((imgUrl: string, idx: number) => (
+                <Image
+                  key={idx}
+                  source={{ uri: imgUrl }}
+                  style={styles.msgImage}
+                />
+              ))
+            ) : (
+              <Text
+                style={[
+                  styles.msgText,
+                  isSent && styles.msgTextSent,
+                ]}
+              >
+                {item?.text}
+              </Text>
+            )}
+
+
+
+            <Text style={[ styles.msgTime, isSent && styles.msgTimeSent, ]} >
+              {new Date(item?.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
   return (
+    <>
+     <ConfirmDialog
+        visible={deleteGroupOpen}
+        onClose={() => setDeleteGroupOpen(false)}
+        loading={deleteLoading === deleteGroupData?._id}
+        title={`${deleteGroupData?.isGroup ? "Exit Group" : "Leave Chat"}`}
+        description={`Are you sure you want to ${deleteGroupData?.isGroup ? "exit" : "leave"} this ${deleteGroupData?.isGroup ? "group" : "chat"}?`}
+        buttonName="Exit"
+        onConfirm={handleExitGroup}
+      />
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : "height"}
@@ -235,11 +351,11 @@ export default function ChatDetailScreen() {
               <ArrowLeft color={Colors.white} size={24} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.userInfo}>
-              <Avatar uri={chatUserData?.friend?.profileImage} size={40} isOnline={chatUserData?.friend?.isOnline} />
+              <Avatar uri={chatUserData?.friend?.profileImage || chatUserData?.group?.images?.[0]} size={40} isOnline={chatUserData?.friend?.isOnline} />
               <View style={{ marginLeft: 10 }}>
-                <Text style={styles.userName}>{chatUserData?.friend?.fullName}</Text>
+                <Text style={styles.userName}>{chatUserData?.friend?.fullName || chatUserData?.group?.title}</Text>
                 <Text style={styles.userStatus}>
-                  {chat.isTyping ? 'typing...' : chatUserData?.friend?.isOnline ? 'Online' : 'Offline'}
+                  {chatUserData?.isGroup ? 'Group' : chatUserData?.friend?.isOnline ? 'Online' : 'Offline'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -250,17 +366,38 @@ export default function ChatDetailScreen() {
               <TouchableOpacity style={styles.headerIconBtn}>
                 <Video color={Colors.gray300} size={22} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.headerIconBtn}>
+              <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowMenu(!showMenu)}>
                 <MoreVertical color={Colors.gray300} size={22} />
               </TouchableOpacity>
             </View>
           </View>
+          {showMenu && (
+  <View style={styles.dropdownMenu}>
+    {chatUserData?.isGroup ? (
+      <TouchableOpacity
+        style={styles.dropdownItem}
+        onPress={() => {setDeleteGroupData(chatUserData); setDeleteGroupOpen(true); setShowMenu(false); }}
+      >
+        <Text style={styles.dropdownText}>Exit Group</Text>
+      </TouchableOpacity>
+    ) : (
+      <TouchableOpacity
+        style={styles.dropdownItem}
+        onPress={() => { setDeleteGroupData(chatUserData); setDeleteGroupOpen(true); setShowMenu(false);}}>
+        <Text style={[styles.dropdownText, { color: "red" }]}>
+          Delete User
+        </Text>
+      </TouchableOpacity>
+    )}
+  </View>
+)}
 
           {/* Messages */}
+          {chatUserData?.isGroup === false ?
           <FlatList
             ref={flatRef}
             data={messageList}
-            renderItem={renderMessage}
+            renderItem={renderSingleMessage}
             keyExtractor={(m) => m?._id}
             onScroll={handleScroll}
             scrollEventThrottle={16}
@@ -268,6 +405,19 @@ export default function ChatDetailScreen() {
               flatRef.current?.scrollToEnd({ animated: false });
             }}
           />
+           :
+          <FlatList
+            ref={flatRef}
+            data={messageList}
+            renderItem={renderGroupMessage}
+            keyExtractor={(m) => m?._id}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={() => {
+              flatRef.current?.scrollToEnd({ animated: false });
+            }}
+          />
+}
           {showScrollBtn && (
             <TouchableOpacity
               onPress={() => {
@@ -360,6 +510,7 @@ export default function ChatDetailScreen() {
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -376,6 +527,35 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.dark.border,
     gap: 4,
   },
+  dropdownMenu: {
+  position: "absolute",
+  top: 95,
+  right: 10,
+  backgroundColor: Colors.dark.surface,
+  borderRadius: 8,
+  minWidth: 140,
+  zIndex: 999,
+  elevation: 10,
+  borderWidth: 1,
+  borderColor: Colors.dark.border,
+},
+
+dropdownItem: {
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+},
+
+dropdownText: {
+  color: "#fff",
+  fontSize: 14,
+},
+  groupUserName: {
+    width:80,
+  color: Colors.gray500,
+  fontSize: 10,
+  textAlign: "center",
+  marginTop: 2,
+},
   postContainer: {
     padding: 8,
     borderRadius: 10,

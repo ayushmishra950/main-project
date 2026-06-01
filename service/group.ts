@@ -16,7 +16,9 @@ export const toggleMember = async (obj: any) => {
 
 
 export const createGroup = async (obj: any) => {
-    const res = await api.post(`/admin/group/add`, obj);
+    const res = await api.post(`/admin/group/add`, obj,
+        { headers: { "Content-Type": "multipart/form-data" } }
+    );
     return res;
 };
 
@@ -26,7 +28,9 @@ export const getGroupById = async (id: string) => {
 };
 
 export const updateGroup = async (obj: any) => {
-    const res = await api.put(`/admin/group/update`, obj);
+    const res = await api.put(`/admin/group/update`, obj,
+        { headers: { "Content-Type": "multipart/form-data" } }
+    );
     return res;
 };
 
