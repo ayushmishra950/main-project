@@ -70,7 +70,9 @@ const chatSlice = createSlice({
     setNewMessageAdd: (state, action: PayloadAction<any>) => {
       state.messageList.push(action.payload);
     },
-
+    setBlankMessageList: (state) => {
+      state.messageList = [];
+    },
 
     setGroupInvited: (state, action: PayloadAction<any>) => {
       const { groupId, chatId, userId } = action.payload;
@@ -148,7 +150,7 @@ setExitUserFromGroup: (state, action) => {
   }
 });
 
-export const { setUserChatList,setOfflineUser,setExitUserFromGroup, setAcceptedInvite, setMessageRefresh, setRejectGroupInvite, setGroupInvited, setUnreadCountRemove, setMessageList, setNewMessageAdd } = chatSlice.actions;
+export const { setUserChatList,setBlankMessageList,setOfflineUser,setExitUserFromGroup, setAcceptedInvite, setMessageRefresh, setRejectGroupInvite, setGroupInvited, setUnreadCountRemove, setMessageList, setNewMessageAdd } = chatSlice.actions;
 
 export default chatSlice.reducer;
 

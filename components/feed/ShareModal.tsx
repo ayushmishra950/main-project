@@ -12,6 +12,7 @@ import {Alert} from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setUserChatList } from '@/redux-toolkit/slice/chatSlice';
 import { getChatUsers } from '@/service/chat';
+import { ActivityIndicator } from 'react-native';
 
 interface Props {
   visible: boolean;
@@ -23,6 +24,7 @@ export default function ShareModal({ visible, onClose, post }: Props) {
   const dispatch = useAppDispatch();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"single" | "group">('group');
  const friendList = useAppSelector((state) => state?.chat?.userChatList);
@@ -47,9 +49,12 @@ export default function ShareModal({ visible, onClose, post }: Props) {
   };
 
    const handleSharePost = async () => {
-        if (!user?._id || !post?._id || !selected.length) return;
+    console.log("Sharing post to:", selected, "Post ID:", post?.id, "User ID:", user?._id);
+        if (!user?._id || !post?.id || !selected.length) return;
         try {
-            const obj = { fromId: user?._id, toId: selected, postId: post?._id, activeTab: activeTab };
+            const obj = { fromId: user?._id, toId: selected, postId: post?.id, activeTab: activeTab };
+         
+            setLoading(true);
             const res = await sharePost(obj);
             if (res.status === 200) {
                 Alert.alert("Post Shared", res?.data?.message || "The post has been shared successfully.");
@@ -57,6 +62,9 @@ export default function ShareModal({ visible, onClose, post }: Props) {
             }
         } catch (err: any) {
             Alert.alert("Share Failed", err?.response?.data?.message || err?.message || "An error occurred while sharing the post.");
+        }
+        finally{
+            setLoading(false);
         }
     };
 
@@ -109,16 +117,51 @@ export default function ShareModal({ visible, onClose, post }: Props) {
               onChangeText={setSearch}
               placeholder="Search friends..."
               placeholderTextColor={Colors.gray500}
-            />
+            />    
           </View>
+          <View style={styles.tabsContainer}>
+  <TouchableOpacity
+    style={[
+      styles.tabButton,
+      activeTab === "single" && styles.activeTab,
+    ]}
+    onPress={() => setActiveTab("single")}
+  >
+    <Text
+      style={[
+        styles.tabText,
+        activeTab === "single" && styles.activeTabText,
+      ]}
+    >
+      Single
+    </Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    style={[
+      styles.tabButton,
+      activeTab === "group" && styles.activeTab,
+    ]}
+    onPress={() => setActiveTab("group")}
+  >
+    <Text
+      style={[
+        styles.tabText,
+        activeTab === "group" && styles.activeTabText,
+      ]}
+    >
+      Group
+    </Text>
+  </TouchableOpacity>
+</View>
 
           <FlatList 
             data={filtered}
-            keyExtractor={(u:any) => u?._id}
+            keyExtractor={(u:any) => u?.chatId?.toString()}
             renderItem={({ item }) => {
-              const isSel = selected.includes(item?._id);
+              const isSel = selected.includes(item?.chatId?.toString() || '');
               return (
-                <TouchableOpacity style={styles.userRow} onPress={() => toggle(item?._id)}>
+                <TouchableOpacity style={styles.userRow} onPress={() => toggle(item?.chatId?.toString())}>
                   <Avatar uri={item?.friend?.profileImage || item?.group?.images?.[0]} size={44} isOnline={item?.isOnline} />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.userName}>{item?.friend?.fullName || item?.group?.title}</Text>
@@ -133,15 +176,27 @@ export default function ShareModal({ visible, onClose, post }: Props) {
             contentContainerStyle={{ paddingHorizontal: 16 }}
           />
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.sendBtn, !selected.length && { opacity: 0.5 }]}
-              disabled={!selected.length}
-              onPress={onClose}
-            >
-              <Text style={styles.sendBtnText}>Send to {selected.length || ''} {selected.length ? 'friend' + (selected.length > 1 ? 's' : '') : 'friends'}</Text>
-            </TouchableOpacity>
-          </View>
+<View style={styles.footer}>
+  <TouchableOpacity
+    style={[
+      styles.sendBtn,
+      (!selected.length || loading) && { opacity: 0.5 }
+    ]}
+    disabled={!selected.length || loading}
+    onPress={handleSharePost}
+  >
+    {loading ? (
+      <ActivityIndicator color={Colors.white} />
+    ) : (
+      <Text style={styles.sendBtnText}>
+        Send to {selected.length || ""}
+        {selected.length
+          ? " friend" + (selected.length > 1 ? "s" : "")
+          : " friends"}
+      </Text>
+    )}
+  </TouchableOpacity>
+</View>
         </View>
       </View>
     </Modal>
@@ -177,6 +232,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
   },
+  tabsContainer: {
+  flexDirection: "row",
+  marginHorizontal: 16,
+  marginBottom: 12,
+  backgroundColor: Colors.dark.surfaceSecondary,
+  borderRadius: 12,
+  padding: 4,
+},
+
+tabButton: {
+  flex: 1,
+  paddingVertical: 10,
+  alignItems: "center",
+  borderRadius: 10,
+},
+
+activeTab: {
+  backgroundColor: Colors.primary,
+},
+
+tabText: {
+  color: Colors.gray500,
+  fontWeight: "600",
+},
+
+activeTabText: {
+  color: Colors.white,
+},
   title: {
     color: Colors.white,
     fontSize: Typography.fontSizes.lg,

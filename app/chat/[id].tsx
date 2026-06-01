@@ -14,6 +14,7 @@ import { setExitUserFromGroup, setMessageList, setMessageRefresh, setNewMessageA
 import * as ImagePicker from 'expo-image-picker';
 import { exitMemberFromGroup } from '@/service/group';
 import ConfirmDialog from '@/components/forms/ConfirmDialog';
+import {ResizeMode } from "expo-av";
 
 
 export default function ChatDetailScreen() {
@@ -144,10 +145,10 @@ export default function ChatDetailScreen() {
     }
   };
   useEffect(() => {
-    if (id && messageList?.length === 0) {
+    if (id || messageList?.length === 0) {
       handleGetMessages();
     }
-  }, [id]);
+  }, [id, messageList?.length]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -214,44 +215,89 @@ export default function ChatDetailScreen() {
           )}
 
           {/* ====== MESSAGE CONTENT ====== */}
-          <View
+         <View
+  style={[
+    styles.bubble,
+    isSent ? styles.bubbleSent : styles.bubbleReceived,
+  ]}
+>
+  {(() => {
+    const mediaFiles = [
+      ...(item?.images || []),
+      ...(item?.postId?.images || []),
+    ];
+
+    return (
+      <>
+        {/* Message Text */}
+        {item?.text ? (
+          <Text
             style={[
-              styles.bubble,
-              isSent ? styles.bubbleSent : styles.bubbleReceived,
+              styles.msgText,
+              isSent && styles.msgTextSent,
+              mediaFiles.length > 0 && { marginBottom: 8 },
             ]}
           >
-            {/* ====== IF IMAGES EXIST ====== */}
-            {item?.images && item.images.length > 0 ? (
-              item.images.map((imgUrl: string, idx: number) => (
-                <Image
-                  key={idx}
-                  source={{ uri: imgUrl }}
-                  style={styles.msgImage}
-                />
-              ))
-            ) : (
-              <Text
-                style={[
-                  styles.msgText,
-                  isSent && styles.msgTextSent,
-                ]}
-              >
-                {item?.text}
-              </Text>
-            )}
+            {item?.text}
+          </Text>
+        ) : null}
 
-            <Text
-              style={[
-                styles.msgTime,
-                isSent && styles.msgTimeSent,
-              ]}
-            >
-              {new Date(item?.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-          </View>
+        {/* Shared Post Text */}
+        {item?.postId?.text ? (
+          <Text
+            style={[
+              styles.msgText,
+              isSent && styles.msgTextSent,
+              { marginBottom: 8, fontWeight: "600" },
+            ]}
+          >
+            {item?.postId?.text}
+          </Text>
+        ) : null}
+
+        {/* Images / Videos */}
+        {mediaFiles.map((file: string, idx: number) => {
+          const isVideo =
+            file?.includes(".mp4") ||
+            file?.includes(".mov") ||
+            file?.includes(".m4v") ||
+            file?.includes(".webm") ||
+            file?.includes("/video/upload/");
+
+          return isVideo ? (
+            <Video
+              key={idx}
+              source={{ uri: file }}
+              style={styles.msgVideo}
+              useNativeControls
+              shouldPlay={false}
+              resizeMode={ResizeMode.COVER}
+            />
+          ) : (
+            <Image
+              key={idx}
+              source={{ uri: file }}
+              style={styles.msgImage}
+            />
+          );
+        })}
+      </>
+    );
+  })()}
+
+  <Text
+    style={[
+      styles.msgTime,
+      isSent && styles.msgTimeSent,
+    ]}
+  >
+    {new Date(item?.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}
+  </Text>
+</View>
+
         </View>
       </View>
     );
@@ -290,42 +336,95 @@ export default function ChatDetailScreen() {
   </View>
 )}
           {/* ====== MESSAGE CONTENT ====== */}
-          <View
+        <View
+  style={[
+    styles.bubble,
+    isSent ? styles.bubbleSent : styles.bubbleReceived,
+  ]}
+>
+  {(() => {
+    const mediaFiles = [
+      ...(item?.images || []),
+      ...(item?.postId?.images || []),
+    ];
+
+    return (
+      <>
+        {/* Message Text */}
+        {item?.text ? (
+          <Text
             style={[
-              styles.bubble,
-              isSent ? styles.bubbleSent : styles.bubbleReceived,
+              styles.msgText,
+              isSent && styles.msgTextSent,
+              mediaFiles.length > 0 && { marginBottom: 8 },
             ]}
           >
-            {/* ====== IF IMAGES EXIST ====== */}
-            {item?.images && item.images.length > 0 ? (
-              item.images.map((imgUrl: string, idx: number) => (
-                <Image
-                  key={idx}
-                  source={{ uri: imgUrl }}
-                  style={styles.msgImage}
-                />
-              ))
-            ) : (
-              <Text
-                style={[
-                  styles.msgText,
-                  isSent && styles.msgTextSent,
-                ]}
-              >
-                {item?.text}
-              </Text>
-            )}
+            {item?.text}
+          </Text>
+        ) : null}
+
+        {/* Shared Post Text */}
+        {item?.postId?.text ? (
+          <Text
+            style={[
+              styles.msgText,
+              isSent && styles.msgTextSent,
+              { marginBottom: 8, fontWeight: "600" },
+            ]}
+          >
+            {item?.postId?.text}
+          </Text>
+        ) : null}
+
+        {/* Images / Videos */}
+        {mediaFiles.map((file: string, idx: number) => {
+          const isVideo =
+            file?.includes(".mp4") ||
+            file?.includes(".mov") ||
+            file?.includes(".m4v") ||
+            file?.includes(".webm") ||
+            file?.includes("/video/upload/");
+
+          return isVideo ? (
+            <Video
+              key={idx}
+              source={{ uri: file }}
+              style={styles.msgVideo}
+              useNativeControls
+              shouldPlay={false}
+              resizeMode={ResizeMode.COVER}
+            />
+          ) : (
+            <Image
+              key={idx}
+              source={{ uri: file }}
+              style={styles.msgImage}
+            />
+          );
+        })}
+      </>
+    );
+  })()}
+
+  <Text
+    style={[
+      styles.msgTime,
+      isSent && styles.msgTimeSent,
+    ]}
+  >
+    {new Date(item?.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}
+  </Text>
+</View>
 
 
-
-            <Text style={[ styles.msgTime, isSent && styles.msgTimeSent, ]} >
-              {new Date(item?.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-          </View>
         </View>
       </View>
     );
   };
+
   return (
     <>
      <ConfirmDialog
@@ -527,6 +626,20 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.dark.border,
     gap: 4,
   },
+  msgImage: {
+  width: 220,
+  height: 220,
+  borderRadius: 12,
+  marginBottom: 6,
+  resizeMode: 'cover',
+},
+
+msgVideo: {
+  width: 220,
+  height: 220,
+  borderRadius: 12,
+  marginBottom: 6,
+},
   dropdownMenu: {
   position: "absolute",
   top: 95,
@@ -648,7 +761,6 @@ dropdownText: {
     borderBottomLeftRadius: 4,
   },
   imgBubbleSent: { borderBottomLeftRadius: 14, borderBottomRightRadius: 4 },
-  msgImage: { width: 120, height: 80, resizeMode: 'cover' },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

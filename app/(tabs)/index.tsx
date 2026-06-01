@@ -286,6 +286,7 @@ export default function HomeScreen() {
       <ShareModal
         visible={!!sharePost}
         onClose={() => setSharePost(null)}
+        post={sharePost}
       />
 
       <PostDialog

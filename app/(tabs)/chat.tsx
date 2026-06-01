@@ -8,7 +8,7 @@ import { CHATS, GROUP_CHATS } from '@/data/dummyData';
 import { getChatUsers, sendMessage, getMessages, rejectGroupInvite, acceptGroupInvite } from "@/service/chat";
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setMessageList, setMessageRefresh, setNewMessageAdd, setAcceptedInvite, setGroupInvited, setRejectGroupInvite, setUnreadCountRemove, setUserChatList } from '@/redux-toolkit/slice/chatSlice';
+import { setMessageList, setMessageRefresh,setBlankMessageList, setNewMessageAdd, setAcceptedInvite, setGroupInvited, setRejectGroupInvite, setUnreadCountRemove, setUserChatList } from '@/redux-toolkit/slice/chatSlice';
 import {Alert} from "react-native";
 import { getSocket } from '@/socket/socket';
 
@@ -145,8 +145,8 @@ export default function ChatScreen() {
 
   const renderChat = ({ item }: any) => (
     <TouchableOpacity
-      style={styles.chatRow}
-      onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item?.chatId } } as any)} >
+      style={styles.chatRow}  
+      onPress={() => {dispatch(setBlankMessageList());router.push({ pathname: '/chat/[id]', params: { id: item?.chatId } } as any)}} >
       <Avatar uri={item?.friend?.profileImage} size={54} isOnline={item?.friend?.isOnline} />
       <View style={styles.chatInfo}>
         <View style={styles.chatTop}>
