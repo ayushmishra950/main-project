@@ -19,6 +19,8 @@ import { setPostList } from '@/redux-toolkit/slice/postSlice';
 import PostDialog from '@/components/forms/PostDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ConfirmDialog from "@/components/forms/ConfirmDialog";
+import { getAllUser } from '@/service/auth';
+import { setUserCount, setUserList } from '@/redux-toolkit/slice/userSlice';
 
 
 export default function HomeScreen() {
@@ -26,21 +28,42 @@ export default function HomeScreen() {
   const reduxPosts = useAppSelector((state) => state.post.postList);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
- const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [selectedPost, setSelectedPost] = useState<any>(null);
   const [sharePost, setSharePost] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [postText, setPostText] = useState('');
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [notifCount] = useState(5);
   const [open, setOpen] = useState(false);
-   const userDatas = useAppSelector((state) => state?.user?.userData);
-      const premiumStatus = userDatas?.user?.premiumUser;
+  const userDatas = useAppSelector((state) => state?.user?.userData);
+  const userList = useAppSelector((state) => state?.user?.userList);
+  const premiumStatus = userDatas?.user?.premiumUser;
   const isPremium = premiumStatus === "premium";
   const isPending = (premiumStatus === null && userDatas?.user?.amount && userDatas?.user?.paymentImage);
   const isNotApplied = (premiumStatus === null && !userDatas?.user?.amount && !userDatas?.user?.paymentImage);
-  
+  const filteredUsers = userList?.filter((user: any) =>
+    user?.fullName?.toLowerCase()?.includes(searchText?.toLowerCase()) ||
+    user?.email?.toLowerCase()?.includes(searchText?.toLowerCase())
+  );
+  const fetchUsers = async () => {
+    try {
+      const res = await getAllUser();
+      const users = res?.data?.data ?? [];
+      dispatch(setUserList(users));
+      dispatch(setUserCount(users.length));
+    } catch (err: any) {
+      console.log(err?.response?.data?.message);
+    }
+  };
+  useEffect(() => {
+    if (userList?.length === 0) {
+      fetchUsers();
+    }
+  }, [userList?.length])
 
-   const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
       setLoading(true);
       await AsyncStorage.removeItem('accessToken');
@@ -74,7 +97,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, [dispatch]);
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -89,101 +112,150 @@ export default function HomeScreen() {
     { icon: Calendar, label: 'Events', route: '/(tabs)/events' },
   ];
 
-  const renderHeader = () => (
-    <View>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.searchRow}>
-          <Search color={Colors.gray500} size={18} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search Vibe..."
-            placeholderTextColor={Colors.gray500}
-          />
-        </View>
-        <View style={styles.topIcons}>
-          <TouchableOpacity style={styles.topIconBtn} onPress={() => { }}>
-            <Bell color={Colors.gray300} size={22} />
-            {notifCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{notifCount}</Text>
+  const renderHeader = () => {
+    return (
+      <View>
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          <View style={styles.searchRow}>
+            <Search color={Colors.gray500} size={18} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search Vibe..."
+              placeholderTextColor={Colors.gray500}
+              value={searchText}
+              onChangeText={(text) => { setSearchText(text); setShowSearchDropdown(text.trim().length > 0) }}
+            />
+          </View>
+          {
+            showSearchDropdown && (
+              <View style={styles.searchDropdown}>
+                {
+                  filteredUsers?.length > 0 ? (
+                    filteredUsers.map((user: any) => (
+                      <TouchableOpacity
+                        key={user._id}
+                        style={styles.searchUserItem}
+                        onPress={() => {
+                          setSearchText("");
+                          setShowSearchDropdown(false);
+
+                          router.push({
+                            pathname: "/profile/[id]",
+                            params: { id: user._id },
+                          } as any);
+                        }}
+                      >
+                        <Avatar uri={user?.avatar} size={40} />
+
+                        <View style={{ marginLeft: 10 }}>
+                          <Text style={styles.userName}>
+                            {user?.fullName}
+                          </Text>
+
+                          <Text style={styles.userUsername}>
+                            @{user?.email}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={styles.notFoundContainer}>
+                      <Text style={styles.notFoundText}>
+                        No user found
+                      </Text>
+                    </View>
+                  )
+                }
               </View>
-            )}
-          </TouchableOpacity>
+            )
+          }
+          <View style={styles.topIcons}>
+            <TouchableOpacity style={styles.topIconBtn} onPress={() => { }}>
+              <Bell color={Colors.gray300} size={22} />
+              {notifCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{notifCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.avatarBtn}
+              onPress={() => setShowDropdown(!showDropdown)}
+            >
+              <Avatar uri={CURRENT_USER.avatar} size={32} />
+              <ChevronDown color={Colors.gray400} size={14} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Quick Nav Icons */}
+        <View style={styles.quickNav}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickNavScroll}>
+            {topIcons.map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.quickNavItem}
+                onPress={() => router.push(item.route as any)}
+              >
+                <LinearGradient
+                  colors={[Colors.dark.surfaceSecondary, Colors.dark.surface]}
+                  style={styles.quickNavIcon}
+                >
+                  <item.icon color={Colors.primary} size={20} />
+                </LinearGradient>
+                <Text style={styles.quickNavLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Stories */}
+        <StoryBar
+          onStoryPress={(s) => router.push({ pathname: '/profile/[id]', params: { id: s.id } } as any)}
+        />
+
+        {/* Create Post */}
+        <View style={styles.createPost}>
+          <Avatar uri={CURRENT_USER.avatar} size={40} />
           <TouchableOpacity
-            style={styles.avatarBtn}
-            onPress={() => setShowDropdown(!showDropdown)}
+            style={styles.createPostInput}
+            onPress={() => setShowCreatePost(true)}
           >
-            <Avatar uri={CURRENT_USER.avatar} size={32} />
-            <ChevronDown color={Colors.gray400} size={14} />
+            <Text style={styles.createPostPlaceholder}>What's on your mind?</Text>
           </TouchableOpacity>
         </View>
-      </View>
+        <View style={styles.createPostActions}>
+          <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
+            <ImageIcon color={Colors.success} size={18} />
+            <Text style={styles.mediaBtnText}>Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
+            <Video color={Colors.error} size={18} />
+            <Text style={styles.mediaBtnText}>Video</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
+            <Send color={Colors.primary} size={18} />
+            <Text style={styles.mediaBtnText}>Post</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Quick Nav Icons */}
-      <View style={styles.quickNav}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickNavScroll}>
-          {topIcons.map((item, i) => (
-            <TouchableOpacity
-              key={i}
-              style={styles.quickNavItem}
-              onPress={() => router.push(item.route as any)}
-            >
-              <LinearGradient
-                colors={[Colors.dark.surfaceSecondary, Colors.dark.surface]}
-                style={styles.quickNavIcon}
-              >
-                <item.icon color={Colors.primary} size={20} />
-              </LinearGradient>
-              <Text style={styles.quickNavLabel}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Premium Card */}
+        {isNotApplied && <PremiumCard />}
       </View>
-
-      {/* Stories */}
-      <StoryBar
-        onStoryPress={(s) => router.push({ pathname: '/profile/[id]', params: { id: s.id } } as any)}
-      />
-
-      {/* Create Post */}
-      <View style={styles.createPost}>
-        <Avatar uri={CURRENT_USER.avatar} size={40} />
-        <TouchableOpacity
-          style={styles.createPostInput}
-          onPress={() => setShowCreatePost(true)}
-        >
-          <Text style={styles.createPostPlaceholder}>What's on your mind?</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.createPostActions}>
-        <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
-          <ImageIcon color={Colors.success} size={18} />
-          <Text style={styles.mediaBtnText}>Photo</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
-          <Video color={Colors.error} size={18} />
-          <Text style={styles.mediaBtnText}>Video</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.mediaBtn} onPress={() => setShowCreatePost(true)}>
-          <Send color={Colors.primary} size={18} />
-          <Text style={styles.mediaBtnText}>Post</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Premium Card */}
-     {isNotApplied && <PremiumCard />}
-    </View>
-  );
+    )
+  };
 
   const renderItem = ({ item, index }: any) => {
     // Transform backend post structure to PostCard expected format
     const post = {
       id: item._id,
       user: item.createdBy,
-      text: item.description || '',
+      title: item.title || '',
+      description: item.description || '',
       images: item.images || [],
       likes: item.likes || [],
+      type: item.type || "public",
       comments: item.comments || [],
       shares: 0,
       isLiked: false,
@@ -194,7 +266,7 @@ export default function HomeScreen() {
     return (
       <PostCard
         post={post}
-       onComment={(post) => setSelectedPost(post)}
+        onComment={(post) => setSelectedPost(post)}
         onShare={post => setSharePost(post)}
       />
     );
@@ -218,83 +290,83 @@ export default function HomeScreen() {
         buttonName="Logout"
         onConfirm={handleLogout}
       />
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.dark.bg} />
-      <FlatList
-        data={loading ? [] : reduxPosts}
-        keyExtractor={i => i._id}
-        renderItem={renderItem}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={loading ? renderSkeletons() : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        style={styles.list}
-      />
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.dark.bg} />
+        <FlatList
+          data={loading ? [] : reduxPosts}
+          keyExtractor={i => i._id}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={loading ? renderSkeletons() : null}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          style={styles.list}
+        />
 
-      {/* Profile Dropdown */}
-      {showDropdown && (
-        <TouchableOpacity
-          style={styles.dropdownOverlay}
-          onPress={() => setShowDropdown(false)}
-        >
-          <View style={styles.dropdown}>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setShowDropdown(false);
-                router.push('/(tabs)/profile');
-              }} >
-              <User color={Colors.gray300} size={18} />
-              <Text style={styles.dropdownText}>Profile</Text>
-            </TouchableOpacity>
-            <View style={styles.dropdownDivider} />
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setShowDropdown(false);
-                router.push('/review');
-              }}
-            >
-              <BadgeCheck color={Colors.gray300} size={18} />
-              <Text style={styles.dropdownText}>Reviews</Text>
-            </TouchableOpacity>
-             <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setShowDropdown(false);
-               setOpen(true);
-              }}
-            >
-              <LogOut color={Colors.error} size={18} />
-              <Text style={[styles.dropdownText, { color: 'red' }]}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
+        {/* Profile Dropdown */}
+        {showDropdown && (
+          <TouchableOpacity
+            style={styles.dropdownOverlay}
+            onPress={() => setShowDropdown(false)}
+          >
+            <View style={styles.dropdown}>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setShowDropdown(false);
+                  router.push('/(tabs)/profile');
+                }} >
+                <User color={Colors.gray300} size={18} />
+                <Text style={styles.dropdownText}>Profile</Text>
+              </TouchableOpacity>
+              <View style={styles.dropdownDivider} />
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setShowDropdown(false);
+                  router.push('/review');
+                }}
+              >
+                <BadgeCheck color={Colors.gray300} size={18} />
+                <Text style={styles.dropdownText}>Reviews</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setShowDropdown(false);
+                  setOpen(true);
+                }}
+              >
+                <LogOut color={Colors.error} size={18} />
+                <Text style={[styles.dropdownText, { color: 'red' }]}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
 
-     <CommentSheet
-  visible={!!selectedPost}
-  post={selectedPost}
-  onClose={() => setSelectedPost(null)}
-/>
-      <ShareModal
-        visible={!!sharePost}
-        onClose={() => setSharePost(null)}
-        post={sharePost}
-      />
+        <CommentSheet
+          visible={!!selectedPost}
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+        />
+        <ShareModal
+          visible={!!sharePost}
+          onClose={() => setSharePost(null)}
+          post={sharePost}
+        />
 
-      <PostDialog
-        visible={showCreatePost}
-        onClose={() => setShowCreatePost(false)}
-        setPostListRefresh={setRefreshing}
-      />
-    </View>
+        <PostDialog
+          visible={showCreatePost}
+          onClose={() => setShowCreatePost(false)}
+          setPostListRefresh={setRefreshing}
+        />
+      </View>
     </>
   );
 }
@@ -315,6 +387,45 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: Colors.dark.bg,
     gap: 12,
+  },
+  searchDropdown: {
+    position: "absolute",
+    top: 60, // search bar ke niche
+    left: 15,
+    right: 15,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 12,
+    maxHeight: 300,
+    zIndex: 999,
+    elevation: 10,
+  },
+
+  searchUserItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#333",
+  },
+
+  userName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  userUsername: {
+    color: "#999",
+    fontSize: 13,
+  },
+
+  notFoundContainer: {
+    padding: 15,
+    alignItems: "center",
+  },
+
+  notFoundText: {
+    color: "#999",
   },
   searchRow: {
     flex: 1,

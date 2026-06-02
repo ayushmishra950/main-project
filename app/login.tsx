@@ -9,6 +9,7 @@ import { useApp } from '@/context/AppContext';
 import {loginUser} from "@/service/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getSocket } from '@/socket/socket';
+import { Alert } from 'react-native';
 
 
 export default function LoginScreen() {
@@ -31,6 +32,7 @@ export default function LoginScreen() {
      if(res.status === 200){
        await AsyncStorage.setItem("accessToken", res?.data?.accessToken);
         await AsyncStorage.setItem("user", JSON.stringify(res?.data?.data));
+        Alert.alert("Login Successful", res?.data?.message || "You have logged in successfully.");
         if(socket){
           socket.emit("joinRoom", res?.data?.data?._id);
         }
@@ -42,7 +44,8 @@ export default function LoginScreen() {
      }  
     }catch(err:any){ 
       console.log('Login error:', err?.response?.data?.message || err?.message); 
-      setError(err.response?.data?.message || err?.message || 'Login failed');
+      Alert.alert("Login Failed", err.response?.data?.message || err?.message || 'Login failed');
+      setError('');
     }
     finally{
       setLoading(false);

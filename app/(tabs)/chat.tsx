@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ScrollView, StatusBar, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Search, CreditCard as Edit, Check, X } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
@@ -16,8 +16,8 @@ export default function ChatScreen() {
   const socket = getSocket();
   const dispatch = useAppDispatch();
   const [search, setSearch] = useState('');
-  const [rejectLoading, setRejectLoading] = useState(false);
-  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [rejectLoading, setRejectLoading] = useState<string | null>(null);
+  const [acceptLoading, setAcceptLoading] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
@@ -73,7 +73,7 @@ export default function ChatScreen() {
 
    const handleAcceptGroupInvite = async (chatId: string, userId: string) => {
     try {
-      setAcceptLoading(true);
+      setAcceptLoading(chatId);
       const res = await acceptGroupInvite({ chatId, userId });
       if (res.status === 200 || res.status === 201) {
         dispatch(setAcceptedInvite({ chatId, userId }));
@@ -85,13 +85,13 @@ export default function ChatScreen() {
       console.log(err);
       Alert.alert("Failed to accept group invite", err?.response?.data?.message || err?.message);
     } finally {
-      setAcceptLoading(false);
+      setAcceptLoading(null);
     }
   };
 
   const handleRejectGroupInvite = async (chatId: string, userId: string) => {
     try {
-      setRejectLoading(true);
+      setRejectLoading(chatId);
       const res = await rejectGroupInvite({ chatId, userId });
       if (res.status === 200 || res.status === 201) {
         Alert.alert("Group invite rejected successfully.", res?.data?.message);
@@ -104,7 +104,7 @@ export default function ChatScreen() {
       console.log(err);
       Alert.alert("Failed to reject group invite", err?.response?.data?.message || err?.message);
     } finally {
-      setRejectLoading(false);
+      setRejectLoading(null);
     }
   };
 
@@ -218,7 +218,7 @@ export default function ChatScreen() {
         handleAcceptGroupInvite(item?.chatId, user?._id)
       }
     >
-      <Check size={16} color="#22C55E" />
+     {acceptLoading === item?.chatId ? <ActivityIndicator color="#fafcfa" /> : <Check size={16} color="#22C55E" />}
     </TouchableOpacity>
 
     <TouchableOpacity
@@ -227,7 +227,7 @@ export default function ChatScreen() {
         handleRejectGroupInvite(item?.chatId, user?._id)
       }
     >
-      <X size={16} color="#EF4444" />
+     {rejectLoading === item?.chatId ? <ActivityIndicator color="#fafcfa" /> : <X size={16} color="#EF4444" />}
     </TouchableOpacity>
   </View>
 ) : (

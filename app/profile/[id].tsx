@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Dimensions} from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Dimensions } from 'react-native';
 
 const W = Dimensions.get('window').width;
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Share2, MoveVertical as MoreVertical, BadgeCheck, MessageCircle, UserPlus, UserCheck } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import PostCard from '@/components/feed/PostCard';
-import {getSingleUserDetail} from "@/service/auth"; 
+import { getSingleUserDetail } from "@/service/auth";
 
 const TABS = ['Posts', 'Gallery'];
 
@@ -19,23 +19,23 @@ export default function UserProfileScreen() {
   const premiumUser = userDatas?.user?.premiumUser === "premium";
   const imageUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(jpg|jpeg|png|webp|gif)$/i));
 
-  const handleGetSingle = async() => {
-    if(!id) return;
-    try{
+  const handleGetSingle = async () => {
+    if (!id) return;
+    try {
       const res = await getSingleUserDetail(id);
-      if(res.status === 200){
-       setUserDatas(res?.data);
+      if (res.status === 200) {
+        setUserDatas(res?.data);
       }
-    }catch(err:any){
+    } catch (err: any) {
       console.log(err?.response?.data?.message || err?.message);
     }
   };
 
   useEffect(() => {
-    if(id){
+    if (id) {
       handleGetSingle();
     }
-  },[id]);
+  }, [id]);
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -61,21 +61,21 @@ export default function UserProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>     
-  
+      </View>
+
       {/* Profile Info */}
-     
+
       <View style={styles.profileSection}>
-     <Image
-  source={{
-    uri:
-      userDatas?.user?.profileImage &&
-      userDatas?.user.profileImage !== "null"
-        ? userDatas?.user.profileImage
-        : "https://imgs.search.brave.com/nY_IY1wMsBYF0PLS_0IynsKbnOXBVWvsOee0uoTU2DU/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9jb250/ZW50LnBleGVscy5j/b20vYWlnYy1idW5k/bGUvaW1hZ2VzLzdi/MTg5ZjllLWZkMjMt/NGExNy05YjIyLWI3/YTU5ZGI2NjI0OS5q/cGc"
-  }}
-  style={{ width: 50, height: 50, borderRadius: 25 }}
-/>
+        <Image
+          source={{
+            uri:
+              userDatas?.user?.profileImage &&
+                userDatas?.user.profileImage !== "null"
+                ? userDatas?.user.profileImage
+                : "https://imgs.search.brave.com/nY_IY1wMsBYF0PLS_0IynsKbnOXBVWvsOee0uoTU2DU/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9jb250/ZW50LnBleGVscy5j/b20vYWlnYy1idW5k/bGUvaW1hZ2VzLzdi/MTg5ZjllLWZkMjMt/NGExNy05YjIyLWI3/YTU5ZGI2NjI0OS5q/cGc"
+          }}
+          style={{ width: 50, height: 50, borderRadius: 25 }}
+        />
         <View style={styles.profileMeta}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{userDatas?.user?.fullName}</Text>
@@ -84,7 +84,7 @@ export default function UserProfileScreen() {
               <View style={styles.premiumBadge}>
                 <Text style={styles.premiumBadgeText}>PRO</Text>
               </View>
-            )}    
+            )}
           </View>
           <Text style={styles.username}>{userDatas?.user?.email}</Text>
           {/* <Text style={styles.bio}>{user?.bio}</Text> */}
@@ -92,7 +92,7 @@ export default function UserProfileScreen() {
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          <View style={styles.stat}> 
+          <View style={styles.stat}>
             <Text style={styles.statVal}>{userDatas?.posts?.length || 0}</Text>
             <Text style={styles.statLabel}>Posts</Text>
           </View>
@@ -106,7 +106,7 @@ export default function UserProfileScreen() {
             <Text style={styles.statVal}>{userDatas?.following?.length || 0}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </View>
-        </View> 
+        </View>
 
         {/* Action Buttons */}
         <View style={styles.btnRow}>
@@ -135,71 +135,73 @@ export default function UserProfileScreen() {
 
       {/* Tabs */}
       <View style={{ backgroundColor: Colors.dark.bg }}>
-      <View style={styles.tabsBar}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={styles.tabsBar}>
+          {TABS.map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-    {activeTab === 'Posts' && (
-  <View>
-    {userDatas?.posts?.length > 0 ? (
-      userDatas?.posts?.map((post:any) => {
-        const transformedPost = {
-          id: post._id,
-          user: post.createdBy,
-          text: post.description || '',
-          images: post.images || [],
-          likes: post.likes || [],
-          comments: post.comments || [],
-          shares: 0,
-          isLiked: false,
-          isSaved: false,
-          timestamp: new Date(post.createdAt).toLocaleDateString(),
-        };
+      {activeTab === 'Posts' && (
+        <View>
+          {userDatas?.posts?.length > 0 ? (
+            userDatas?.posts?.map((post: any) => {
+              const transformedPost = {
+                id: post._id,
+                user: post.createdBy,
+                title: post.title || '',
+                description: post.description || '',
+                images: post.images || [],
+                type:post.type || "public",
+                likes: post.likes || [],
+                comments: post.comments || [],
+                shares: 0,
+                isLiked: false,
+                isSaved: false,
+                timestamp: new Date(post.createdAt).toLocaleDateString(),
+              };
 
-        return <PostCard key={post._id} post={transformedPost} />;
-      })
-    ) : (
-      <View style={{ alignItems: 'center', marginTop: 40 }}>
-        <Text style={{ color: Colors.gray400, fontSize: 16 }}>
-          No Posts Found
-        </Text>
-      </View>
-    )}
-  </View>
-)}
+              return <PostCard key={post._id} post={transformedPost} />;
+            })
+          ) : (
+            <View style={{ alignItems: 'center', marginTop: 40 }}>
+              <Text style={{ color: Colors.gray400, fontSize: 16 }}>
+                No Posts Found
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
-     {activeTab === 'Gallery' && (
-  <>
-    {imageUrls?.length > 0 ? (
-      <View style={styles.gallery}>
-        {imageUrls?.map((img:string, i:number) => (
-          <Image
-            key={i}
-            source={{ uri: img }}
-            style={styles.galleryImg}
-          />
-        ))}
-      </View>
-    ) : (
-      <View style={{ alignItems: 'center', marginTop: 40 }}>
-        <Text style={{ color: Colors.gray400, fontSize: 16 }}>
-          No Gallery Images Found
-        </Text>
-      </View>
-    )}
-  </>
-)}  
+      {activeTab === 'Gallery' && (
+        <>
+          {imageUrls?.length > 0 ? (
+            <View style={styles.gallery}>
+              {imageUrls?.map((img: string, i: number) => (
+                <Image
+                  key={i}
+                  source={{ uri: img }}
+                  style={styles.galleryImg}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center', marginTop: 40 }}>
+              <Text style={{ color: Colors.gray400, fontSize: 16 }}>
+                No Gallery Images Found
+              </Text>
+            </View>
+          )}
+        </>
+      )}
       <View style={{ height: 60 }} />
     </ScrollView>
   );
@@ -294,8 +296,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.dark.border,
 
     zIndex: 999,
-  elevation: 10,
-  position: 'relative',
+    elevation: 10,
+    position: 'relative',
   },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: Colors.primary },

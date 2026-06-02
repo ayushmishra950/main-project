@@ -15,7 +15,7 @@ import { setUserData } from "@/redux-toolkit/slice/userSlice";
 import { setUserPostList } from '@/redux-toolkit/slice/postSlice';
 import { useAppDispatch, useAppSelector } from "@/redux-toolkit/customHook/hook";
 import ConfirmDialog from "@/components/forms/ConfirmDialog";
-import {getSingleUserDetail} from "@/service/auth"; 
+import { getSingleUserDetail } from "@/service/auth";
 import UserDialog from "@/components/forms/UserDialog";
 
 
@@ -30,47 +30,47 @@ export default function ProfileScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-   const [user, setUser] = useState<any | null>();
-   const userDatas = useAppSelector((state) => state?.user?.userData);
-    const imageUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(jpg|jpeg|png|webp|gif)$/i));
-    const videoUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(mp4|mov|avi|mkv|webm)$/i));
-    const premiumStatus = userDatas?.user?.premiumUser;
-const isPremium = premiumStatus === "premium";
-const isPending = (premiumStatus === null && userDatas?.user?.amount && userDatas?.user?.paymentImage);
-const isNotApplied = (premiumStatus === null && !userDatas?.user?.amount && !userDatas?.user?.paymentImage);
+  const [user, setUser] = useState<any | null>();
+  const userDatas = useAppSelector((state) => state?.user?.userData);
+  const imageUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(jpg|jpeg|png|webp|gif)$/i));
+  const videoUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(mp4|mov|avi|mkv|webm)$/i));
+  const premiumStatus = userDatas?.user?.premiumUser;
+  const isPremium = premiumStatus === "premium";
+  const isPending = (premiumStatus === null && userDatas?.user?.amount && userDatas?.user?.paymentImage);
+  const isNotApplied = (premiumStatus === null && !userDatas?.user?.amount && !userDatas?.user?.paymentImage);
 
   const toggleMenu = () => {
     setMenuOpen(prev => !prev);
   };
-  
 
-    const handleGetSingle = async() => {
-        const userData = await AsyncStorage.getItem("user").then(res => res ? JSON.parse(res) : null);
+
+  const handleGetSingle = async () => {
+    const userData = await AsyncStorage.getItem("user").then(res => res ? JSON.parse(res) : null);
     const userId = userData?._id;
     if (!userId) return;
-      try{
-        const res = await getSingleUserDetail(userId);
-        if(res.status === 200){
-         dispatch(setUserData(res?.data));
-        };
-      }catch(err:any){
-        console.log(err?.response?.data?.message || err?.message);
-      }
-    };
-    useEffect(() => {
-        handleGetSingle();
-    },[user?._id]);
-
-    useEffect(() => {
-      const getUser = async() => {
-        const userData = await AsyncStorage.getItem("user");
-        const user = userData ? JSON.parse(userData) : null;
-         setUser(user);
+    try {
+      const res = await getSingleUserDetail(userId);
+      if (res.status === 200) {
+        dispatch(setUserData(res?.data));
       };
-      if(user === null){
-        getUser();
-      }
-    },[user])
+    } catch (err: any) {
+      console.log(err?.response?.data?.message || err?.message);
+    }
+  };
+  useEffect(() => {
+    handleGetSingle();
+  }, [user?._id]);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const userData = await AsyncStorage.getItem("user");
+      const user = userData ? JSON.parse(userData) : null;
+      setUser(user);
+    };
+    if (user === null) {
+      getUser();
+    }
+  }, [user])
 
   const handleLogout = async () => {
     try {
@@ -83,126 +83,128 @@ const isNotApplied = (premiumStatus === null && !userDatas?.user?.amount && !use
     }
   };
 
- const renderPosts = () => (
-  <View>
-    {userDatas?.posts?.length > 0 ? (
-      userDatas.posts.map((post: any) => {
-        const transformedPost = {
-          id: post._id,
-          user: post.createdBy,
-          text: post.description || '',
-          images: post.images || [],
-          likes: post.likes || [],
-          comments: post.comments || [],
-          shares: 0,
-          isLiked: false,
-          isSaved: false,
-          timestamp: new Date(post.createdAt).toLocaleDateString(),
-        };
+  const renderPosts = () => (
+    <View>
+      {userDatas?.posts?.length > 0 ? (
+        userDatas.posts.map((post: any) => {
+          const transformedPost = {
+            id: post._id,
+            user: post.createdBy,
+            title: post.title || '',
+            description: post.description || '',
+            images: post.images || [],
+            type:post.type || "public",
+            likes: post.likes || [],
+            comments: post.comments || [],
+            shares: 0,
+            isLiked: false,
+            isSaved: false,
+            timestamp: new Date(post.createdAt).toLocaleDateString(),
+          };
 
-        return <PostCard key={post._id} post={transformedPost} />;
-      })
-    ) : (
-      <View style={{ 
-        flex: 1, 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        paddingVertical: 40 
-      }}>
-        <Text style={{ color: '#999', fontSize: 16 }}>
-          No posts available
-        </Text>
-      </View>
-    )}
-  </View>
-);
-
-const renderGallery = () => (
-  <View style={styles.gallery}>
-    {imageUrls?.length > 0 ? (
-      imageUrls.map((img: string, i: number) => (
-        <TouchableOpacity key={i}>
-          <Image source={{ uri: img }} style={styles.galleryImg} />
-        </TouchableOpacity>
-      ))
-    ) : (
-      <View style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40,
-        width: '100%'
-      }}>
-        <Text style={{ color: '#999', fontSize: 16 }}>
-          No images available
-        </Text>
-      </View>
-    )}
-  </View>
-);
-
- const renderFriends = () => (
-  <View style={styles.friendsList}>
-    {userDatas?.friends?.length > 0 ? (
-      userDatas.friends.map((u: any) => (
-        <View key={u?._id} style={styles.friendCard}>
-          <Avatar uri={u?.profileImage || "https://res.cloudinary.com/dz7jbphok/image/upload/v1779691794/profile/aw32czm29zmqgxgkomfy.webp"} size={56} isOnline={u?.isOnline} />
-          
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{u?.fullName}</Text>
-            <Text style={styles.friendHandle}>
-              {u?.email || u?.mobile}
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.friendMsgBtn}>
-            <MessageCircle color={Colors.primary} size={18} />
-          </TouchableOpacity>
+          return <PostCard key={post._id} post={transformedPost} />;
+        })
+      ) : (
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 40
+        }}>
+          <Text style={{ color: '#999', fontSize: 16 }}>
+            No posts available
+          </Text>
         </View>
-      ))
-    ) : (
-      <View style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40
-      }}>
-        <Text style={{ color: '#999', fontSize: 16 }}>
-          No friends available
-        </Text>
-      </View>
-    )}
-  </View>
-);
+      )}
+    </View>
+  );
 
- const renderVideos = () => (
-  <View style={styles.gallery}>
-    {videoUrls?.length > 0 ? (
-      videoUrls.slice(0, 6).map((img: string, i: number) => (
-        <TouchableOpacity key={i} style={styles.videoThumb}>
-          <Image source={{ uri: img }} style={styles.galleryImg} />
-          <View style={styles.videoPlayOverlay}>
-            <View style={styles.playBtn}>
-              <Video color={Colors.white} size={20} />
+  const renderGallery = () => (
+    <View style={styles.gallery}>
+      {imageUrls?.length > 0 ? (
+        imageUrls.map((img: string, i: number) => (
+          <TouchableOpacity key={i}>
+            <Image source={{ uri: img }} style={styles.galleryImg} />
+          </TouchableOpacity>
+        ))
+      ) : (
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 40,
+          width: '100%'
+        }}>
+          <Text style={{ color: '#999', fontSize: 16 }}>
+            No images available
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderFriends = () => (
+    <View style={styles.friendsList}>
+      {userDatas?.friends?.length > 0 ? (
+        userDatas.friends.map((u: any) => (
+          <View key={u?._id} style={styles.friendCard}>
+            <Avatar uri={u?.profileImage || "https://res.cloudinary.com/dz7jbphok/image/upload/v1779691794/profile/aw32czm29zmqgxgkomfy.webp"} size={56} isOnline={u?.isOnline} />
+
+            <View style={styles.friendInfo}>
+              <Text style={styles.friendName}>{u?.fullName}</Text>
+              <Text style={styles.friendHandle}>
+                {u?.email || u?.mobile}
+              </Text>
             </View>
+
+            <TouchableOpacity style={styles.friendMsgBtn}>
+              <MessageCircle color={Colors.primary} size={18} />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      ))
-    ) : (
-      <View style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40,
-        width: '100%'
-      }}>
-        <Text style={{ color: '#999', fontSize: 16 }}>
-          No videos available
-        </Text>
-      </View>
-    )}
-  </View>
-);
+        ))
+      ) : (
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 40
+        }}>
+          <Text style={{ color: '#999', fontSize: 16 }}>
+            No friends available
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderVideos = () => (
+    <View style={styles.gallery}>
+      {videoUrls?.length > 0 ? (
+        videoUrls.slice(0, 6).map((img: string, i: number) => (
+          <TouchableOpacity key={i} style={styles.videoThumb}>
+            <Image source={{ uri: img }} style={styles.galleryImg} />
+            <View style={styles.videoPlayOverlay}>
+              <View style={styles.playBtn}>
+                <Video color={Colors.white} size={20} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 40,
+          width: '100%'
+        }}>
+          <Text style={{ color: '#999', fontSize: 16 }}>
+            No videos available
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -262,11 +264,7 @@ const renderGallery = () => (
                 <View style={styles.dropdown}>
                   <TouchableOpacity
                     style={styles.dropdownItem}
-                    onPress={() => {
-                      setMenuOpen(false);
-                      setOpen(true);
-                    }}
-                  >
+                    onPress={() => { setMenuOpen(false); setOpen(true); }} >
                     <Text style={styles.logoutText}>Logout</Text>
                   </TouchableOpacity>
                 </View>
@@ -274,22 +272,22 @@ const renderGallery = () => (
             )}
           </View>
           <View style={styles.profileSection}>
-           <View style={{ position: "relative", alignSelf: "flex-start" }}>
-  <Avatar uri={userDatas?.user?.profileImage} size={88} isOnline />
+            <View style={{ position: "relative", alignSelf: "flex-start" }}>
+              <Avatar uri={userDatas?.user?.profileImage} size={88} isOnline />
 
-  {isPremium && (
-    <View style={styles.crownBadge}>
-      <Text style={{ color: "#fff", fontSize: 12 }}>👑</Text>
-    </View>
-  )}
-</View>
+              {isPremium && (
+                <View style={styles.crownBadge}>
+                  <Text style={{ color: "#fff", fontSize: 12 }}>👑</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.profileMeta}>
               <View style={styles.nameRow}>
                 <Text style={styles.profileName}>{userDatas?.user?.fullName}</Text>
                 {userDatas?.user?.isVerified && <BadgeCheck color={Colors.primary} size={18} />}
               </View>
               <Text style={styles.profileHandle}>{userDatas?.user?.email}</Text>
-              <Text style={styles.profileBio}>{CURRENT_USER.bio}</Text>
+              <Text style={styles.profileBio}>{userDatas?.user?.occupation}</Text>
               <View style={styles.profileLinks}>
                 <View style={styles.linkRow}>
                   <MapPin color={Colors.gray500} size={14} />
@@ -316,7 +314,7 @@ const renderGallery = () => (
 
           {/* Buttons */}
           <View style={styles.profileBtns}>
-            <TouchableOpacity style={styles.editProfileBtn} onPress={() => {router.replace("/user/edit")}}>
+            <TouchableOpacity style={styles.editProfileBtn} onPress={() => { router.replace("/user/edit") }}>
               <Edit color={Colors.white} size={16} />
               <Text style={styles.editProfileBtnText}>Edit Profile</Text>
             </TouchableOpacity>
@@ -329,21 +327,21 @@ const renderGallery = () => (
           </View>
 
           {/* Premium */}
-       {isPremium && (
-  <View style={styles.crownWrapper}>
-    <Text style={styles.premiumText}>👑 Premium User</Text>
-  </View>
-)}
+          {isPremium && (
+            <View style={styles.crownWrapper}>
+              <Text style={styles.premiumText}>👑 Premium User</Text>
+            </View>
+          )}
 
-{isPending && (
-  <View style={styles.pendingBox}>
-    <Text style={styles.pendingText}>
-      Your premium request is under review. Admin will respond shortly.
-    </Text>
-  </View>
-)}
+          {isPending && (
+            <View style={styles.pendingBox}>
+              <Text style={styles.pendingText}>
+                Your premium request is under review. Admin will respond shortly.
+              </Text>
+            </View>
+          )}
 
-{isNotApplied && <PremiumCard />}
+          {isNotApplied && <PremiumCard />}
         </View>
 
         {/* Sticky Tabs */}
@@ -381,48 +379,48 @@ const styles = StyleSheet.create({
     height: 100,
   },
   crownWrapper: {
-  marginTop: 10,
-  padding: 10,
-  borderRadius: 12,
-  backgroundColor: "#1f2937",
-  alignItems: "center",
-},
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#1f2937",
+    alignItems: "center",
+  },
 
-premiumText: {
-  color: "#facc15",
-  fontWeight: "700",
-},
+  premiumText: {
+    color: "#facc15",
+    fontWeight: "700",
+  },
 
-pendingBox: {
-  marginTop: 10,
-  padding: 10,
-  borderRadius: 12,
-  backgroundColor: "#111827",
-},
+  pendingBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#111827",
+  },
 
-pendingText: {
-  color: "#f6f7f8",
-  fontSize: 12,
-  textAlign: "center",
-  lineHeight: 18,
-},
+  pendingText: {
+    color: "#f6f7f8",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+  },
 
   crownBadge: {
-  position: "absolute",
-  top: -6,
-  right: -6,
-  height: 26,
-  width: 26,
-  borderRadius: 13,
-  backgroundColor: "#facc15",
-  alignItems: "center",
-  justifyContent: "center",
+    position: "absolute",
+    top: -6,
+    right: -6,
+    height: 26,
+    width: 26,
+    borderRadius: 13,
+    backgroundColor: "#facc15",
+    alignItems: "center",
+    justifyContent: "center",
 
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowRadius: 4,
-  elevation: 5,
-},
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
 
   topActionsSetting: {
     position: 'relative',

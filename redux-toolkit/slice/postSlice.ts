@@ -86,7 +86,15 @@ const postSlice = createSlice({
     },
 
     setDeletePostFromList: (state, action: PayloadAction<{ postId: string; userId: string }>) => {
-      // Implementation for deleting post
+       const { postId, userId } = action.payload;
+
+      const postIndex = state.postList.findIndex(
+        (p) => p._id === postId && p.createdBy?._id === userId
+      );
+
+      if (postIndex !== -1) {
+        state.postList.splice(postIndex, 1);
+      }
     },
   },
 });

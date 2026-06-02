@@ -1,6 +1,9 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-const initialState = {
+interface ReviewState {
+  reviewsList: any[];
+}
+const initialState: ReviewState = {
   reviewsList: []
 };
 
@@ -13,25 +16,25 @@ const reviewSlice = createSlice({
       state.reviewsList = action.payload;
     },
     setNewReview: (state, action) => {
-      // const newItem = action.payload;
+      const newItem = action.payload;
 
-      // const index = state?.reviewsList?.findIndex(
-      //   (item) => item._id === newItem._id
-      // );
+      const index = state?.reviewsList?.findIndex(
+        (item) => item._id === newItem._id
+      );
 
-      // if (index !== -1) {
-      //   state.reviewsList[index] = newItem;
-      // } else {
-      //   state.reviewsList.unshift(newItem);
-      // }
+      if (index !== -1) {
+        state.reviewsList[index] = newItem;
+      } else {
+        state.reviewsList.unshift(newItem);
+      }
     },
 
    setRemoveReview: (state, action) => {
   const id = action.payload;
 
-  // state.reviewsList = state.reviewsList.filter(
-  //   (item) => item._id !== id
-  // );
+  state.reviewsList = state.reviewsList.filter(
+    (item) => item._id !== id
+  );
 }
   }
 });

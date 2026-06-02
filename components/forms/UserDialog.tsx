@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, ActivityIndicator, Switch} from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react-native";
-import { getSingleUser, updateUser } from "@/service/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { StyleSheet } from "react-native";
-// import { useToast } from "@/hooks/use-toast";
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, Platform, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Eye, EyeOff, Plus, Trash2, Camera, Upload, ChevronDown, ChevronUp } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Colors, Typography, BorderRadius } from '@/constants/theme';
+import GradientButton from '@/components/ui/GradientButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSingleUser, updateUser } from '@/service/auth';
+import { ArrowLeft } from 'lucide-react-native';
+import { router } from 'expo-router';
 
-export default function UserDialog() {
-    // const { toast } = useToast();
-    const [user, setUser] = useState<any | null>();  
+export default function UserProfileScreen() {
+    const [user, setUser] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showBusiness, setShowBusiness] = useState(false);
@@ -23,16 +25,30 @@ export default function UserDialog() {
         children: [],
     });
 
-    const [errors, setErrors] = useState({ skills: "", hobbies: "" });
-
     const [preview, setPreview] = useState<any>({
-        profileImage: "",
-        coverImage: "",
+        profileImage: null,
+        coverImage: null,
         businessCoverImages: {} as Record<number, string>,
     });
 
-    // Image Picker Function
-    const pickImage = async (field: string, index?: number) => {
+    useEffect(() => {
+        const getUser = async () => {
+            const res = await AsyncStorage.getItem("user");
+            const parsed = res ? JSON.parse(res) : null;
+            setUser(parsed);
+        };
+        if (user === null) {
+            getUser();
+        };
+    }, [user]);
+
+    // Handle Input Change
+    const handleChange = (name: string, value: any) => {
+        setFormData((prev: any) => ({ ...prev, [name]: value }));
+    };
+
+    // Image Picker
+    const pickImage = async (name: string, businessIndex?: number) => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -42,55 +58,50 @@ export default function UserDialog() {
         if (!result.canceled && result.assets[0]) {
             const uri = result.assets[0].uri;
 
-            if (field === "profileImage" || field === "coverImage") {
-                setFormData({ ...formData, [field]: { uri, name: "image.jpg", type: "image/jpeg" } });
-                setPreview({ ...preview, [field]: uri });
-            } else if (field === "businessCoverImage" && index !== undefined) {
+            if (businessIndex !== undefined) {
                 const updatedBusinesses = [...formData.businesses];
-                updatedBusinesses[index].businessCoverImage = { uri, name: "image.jpg", type: "image/jpeg" };
+                updatedBusinesses[businessIndex] = {
+                    ...updatedBusinesses[businessIndex],
+                    businessCoverImage: uri, // You can handle actual file later in FormData
+                };
                 setFormData({ ...formData, businesses: updatedBusinesses });
 
                 setPreview({
                     ...preview,
-                    businessCoverImages: { ...preview.businessCoverImages, [index]: uri },
+                    businessCoverImages: { ...preview.businessCoverImages, [businessIndex]: uri }
                 });
-            }
-        }
-    };
-
-    const handleChange = (name: string, value: any) => {
-        if (name === "skills" || name === "hobbies") {
-            const items = value.split(",").map((item: string) => item.trim()).filter(Boolean);
-            if (items.length > 5) {
-                setErrors({ ...errors, [name]: "Maximum 5 items allowed" });
-                return;
             } else {
-                setErrors({ ...errors, [name]: "" });
+                setFormData({ ...formData, [name]: uri });
+                setPreview({ ...preview, [name]: uri });
             }
         }
-        setFormData({ ...formData, [name]: value });
     };
 
-    const handleChildChange = (index: number, name: string, value: any) => {
+    // Child Handlers
+    const addChild = () => {
+        setFormData({
+            ...formData,
+            children: [...(formData.children || []), { name: "", age: "" }]
+        });
+    };
+
+    const handleChildChange = (index: number, field: string, value: any) => {
         const updatedChildren = [...(formData.children || [])];
-        updatedChildren[index] = {
-            ...updatedChildren[index],
-            [name]: name === "age" ? Number(value) : value
-        };
+        updatedChildren[index] = { ...updatedChildren[index], [field]: value };
         setFormData({ ...formData, children: updatedChildren });
     };
 
-    const handleBusinessChange = (index: number, name: string, value: any) => {
-        const updatedBusinesses = [...formData.businesses];
-        updatedBusinesses[index][name] = value;
-        setFormData({ ...formData, businesses: updatedBusinesses });
+    const removeChild = (index: number) => {
+        const updated = formData.children.filter((_: any, i: number) => i !== index);
+        setFormData({ ...formData, children: updated });
     };
 
+    // Business Handlers
     const addBusiness = () => {
         setFormData({
             ...formData,
             businesses: [
-                ...formData.businesses,
+                ...(formData.businesses || []),
                 {
                     businessName: "",
                     businessCategory: "",
@@ -106,758 +117,662 @@ export default function UserDialog() {
     };
 
     const removeBusiness = (index: number) => {
-        const updatedBusinesses = formData.businesses.filter((_: any, i: number) => i !== index);
+        const updated = formData.businesses.filter((_: any, i: number) => i !== index);
         const updatedPreviews = { ...preview.businessCoverImages };
         delete updatedPreviews[index];
-
         setPreview({ ...preview, businessCoverImages: updatedPreviews });
-        setFormData({ ...formData, businesses: updatedBusinesses });
+        setFormData({ ...formData, businesses: updated });
+    };
+
+    const handleBusinessChange = (index: number, field: string, value: any) => {
+        const updated = [...formData.businesses];
+        updated[index] = { ...updated[index], [field]: value };
+        setFormData({ ...formData, businesses: updated });
     };
 
     const handleSubmit = async () => {
         try {
             setIsLoading(true);
+
             const form = new FormData();
 
-            const finalUserId = user?._id || formData?.userId;
-            if (finalUserId) form.append("userId", finalUserId);
+            // Explicitly add userId from the logged-in user context or formData
+            const finalUserId = user?._id || formData?._id || formData?.userId;
+            if (finalUserId) {
+                form.append("userId", finalUserId);
+            }
 
             Object.keys(formData).forEach((key) => {
                 const excluded = ["businesses", "userId", "_id", "friends", "isOnline", "lastSeen", "role", "blocked", "children"];
-                if (!excluded.includes(key) && formData[key] !== undefined && formData[key] !== null) {
-                    form.append(key, formData[key]);
+                if (!excluded.includes(key)) {
+                    if (formData[key] !== undefined && formData[key] !== null) {
+                        form.append(key, formData[key]);
+                    }
                 }
             });
-
             if (formData.children) {
                 form.append("children", JSON.stringify(formData.children));
             }
 
+            // Clean businesses array for JSON (remove File objects to avoid {})
             const businessesForJSON = formData.businesses.map((biz: any) => {
                 const bizCopy = { ...biz };
-                if (bizCopy.businessCoverImage?.uri) delete bizCopy.businessCoverImage;
+                if (bizCopy.businessCoverImage instanceof File) {
+                    delete bizCopy.businessCoverImage;
+                }
                 return bizCopy;
             });
 
             form.append("businesses", JSON.stringify(businessesForJSON));
 
             formData.businesses.forEach((biz: any, index: number) => {
-                if (biz.businessCoverImage?.uri) {
-                    form.append(`businessCoverImage_${index}`, {
-                        uri: biz.businessCoverImage.uri,
-                        name: "business_cover.jpg",
-                        type: "image/jpeg",
-                    } as any);
+                if (biz.businessCoverImage instanceof File) {
+                    form.append(`businessCoverImage_${index}`, biz.businessCoverImage);
                 }
             });
 
             const res = await updateUser(form);
+
             if (res.status === 200) {
                 const updatedUser = res.data.user;
-                if (updatedUser) localStorage.setItem("user", JSON.stringify(updatedUser));
-                // toast({ title: "Profile Updated Successfully", description: res.data.message });
+                if (updatedUser) {
+                    await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+                }
+                Alert.alert("Profile Updated Successfully", res.data.message);
                 handleGetUser();
             }
         } catch (err: any) {
-            // toast({
-            //     title: "Update Failed",
-            //     description: err?.response?.data?.message || err.message,
-            //     variant: "destructive"
-            // });
+            console.log(err?.response?.data?.message || err.message);
+            Alert.alert("Profile Update Failed", err?.response?.data?.message || err?.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleGetUser = async () => {
+        if(!user?._id) return;
         try {
             const res = await getSingleUser(user?._id);
             if (res.status === 200) {
                 const data = res?.data?.data || {};
                 setFormData({
                     ...data,
-                    businesses: data.businesses?.length > 0 ? data.businesses : [{}],
+                    businesses: data.businesses?.length > 0
+                        ? data.businesses
+                        : [{
+                            businessName: "",
+                            businessCategory: "",
+                            website: "",
+                            businessDescription: "",
+                            businessPhone: "",
+                            workingHours: "",
+                            businessAddress: "",
+                            businessCoverImage: ""
+                        }]
                 });
+
                 setAccountType(data?.accountType || "user");
                 if (data.accountType === "business") setShowBusiness(true);
             }
-        } catch (err) {
-            console.log(err);
+        } catch (err:any) {
+            console.log(err?.response?.data?.message || err?.message);
         }
     };
 
     useEffect(() => {
         handleGetUser();
-    }, []);
-
-
-    useEffect(() => {
-      const getUser = async() => {
-        const userData = await AsyncStorage.getItem("user");
-        const user = userData ? JSON.parse(userData) : null;
-        setUser(user);
-      };
-
-      if(user === null){
-        getUser()
-      }
-    },[user]);
-
-    // return (
-    //     <ScrollView className="flex-1 bg-gray-50" contentContainerStyle={{ padding: 16 }}>
-    //         <Text className="text-3xl font-semibold text-gray-900 mt-4">Profile Settings</Text>
-    //         <Text className="text-gray-600 mt-1 mb-8">Update your personal and business information</Text>
-
-    //         {/* Cover + Profile Image */}
-    //         <View className="bg-white rounded-3xl overflow-hidden border border-gray-200 mb-6">
-    //             <View className="h-56 bg-gradient-to-r from-blue-600 to-indigo-600 relative">
-    //                 {preview.coverImage || formData.coverImage ? (
-    //                     <Image
-    //                         source={{ uri: preview.coverImage || formData.coverImage }}
-    //                         className="w-full h-full"
-    //                         resizeMode="cover"
-    //                     />
-    //                 ) : null}
-
-    //                 <TouchableOpacity
-    //                     onPress={() => pickImage("coverImage")}
-    //                     className="absolute top-4 right-4 bg-white/90 px-4 py-2 rounded-2xl"
-    //                 >
-    //                     <Text className="font-medium">Change Cover</Text>
-    //                 </TouchableOpacity>
-
-    //                 <View className="absolute -bottom-12 left-6">
-    //                     <View className="relative">
-    //                         <View className="w-28 h-28 rounded-3xl border-4 border-white overflow-hidden bg-white">
-    //                             {(preview.profileImage || formData.profileImage) ? (
-    //                                 <Image
-    //                                     source={{ uri: preview.profileImage || formData.profileImage }}
-    //                                     className="w-full h-full"
-    //                                     resizeMode="cover"
-    //                                 />
-    //                             ) : (
-    //                                 <View className="w-full h-full bg-gray-200 items-center justify-center">
-    //                                     <Text className="text-gray-400">No Photo</Text>
-    //                                 </View>
-    //                             )}
-    //                         </View>
-    //                         <TouchableOpacity
-    //                             onPress={() => pickImage("profileImage")}
-    //                             className="absolute bottom-1 right-1 bg-white p-2 rounded-full shadow"
-    //                         >
-    //                             <Text>📸</Text>
-    //                         </TouchableOpacity>
-    //                     </View>
-    //                 </View>
-    //             </View>
-    //             <View className="h-14" />
-    //         </View>
-
-    //         {/* Account Type */}
-    //         <View className="bg-white p-6 rounded-3xl border border-gray-200 mb-6">
-    //             <Text className="text-sm font-semibold text-gray-700 mb-3">Account Type</Text>
-    //             <View className="flex-row bg-gray-100 rounded-2xl p-1">
-    //                 <TouchableOpacity
-    //                     onPress={() => { setAccountType("user"); setFormData({ ...formData, accountType: "user" }); }}
-    //                     className={`flex-1 py-3 rounded-xl ${accountType === "user" ? "bg-white shadow" : ""}`}
-    //                 >
-    //                     <Text className="text-center font-medium">Personal User</Text>
-    //                 </TouchableOpacity>
-    //                 <TouchableOpacity
-    //                     onPress={() => { setAccountType("business"); setFormData({ ...formData, accountType: "business" }); setShowBusiness(true); }}
-    //                     className={`flex-1 py-3 rounded-xl ${accountType === "business" ? "bg-white shadow" : ""}`}
-    //                 >
-    //                     <Text className="text-center font-medium">Business Account</Text>
-    //                 </TouchableOpacity>
-    //             </View>
-    //         </View>
-
-    //         {/* Basic Information */}
-    //         <View className="bg-white p-6 rounded-3xl border border-gray-200 mb-6">
-    //             <Text className="text-xl font-semibold mb-6">Basic Information</Text>
-
-    //             {/* Add all your TextInput fields similarly */}
-    //             <TextInput
-    //                 placeholder="Full Name"
-    //                 value={formData.fullName || ""}
-    //                 onChangeText={(text) => handleChange("fullName", text)}
-    //                 className="border border-gray-300 rounded-2xl px-4 py-3 mb-4"
-    //             />
-
-    //             {/* Repeat for other fields: dob, occupation, mobile, spouseName, etc. */}
-
-    //             {/* Children Section */}
-    //             {formData.children?.map((child: any, index: number) => (
-    //                 <View key={index} className="border border-gray-200 p-4 rounded-2xl bg-gray-50 mb-4">
-    //                     <Text className="font-semibold mb-3">Child {index + 1}</Text>
-    //                     <TextInput
-    //                         placeholder="Child Name"
-    //                         value={child.name || ""}
-    //                         onChangeText={(text) => handleChildChange(index, "name", text)}
-    //                         className="border border-gray-300 rounded-2xl px-4 py-3 mb-3"
-    //                     />
-    //                     <TextInput
-    //                         placeholder="Age"
-    //                         keyboardType="numeric"
-    //                         value={child.age?.toString() || ""}
-    //                         onChangeText={(text) => handleChildChange(index, "age", text)}
-    //                         className="border border-gray-300 rounded-2xl px-4 py-3"
-    //                     />
-    //                 </View>
-    //             ))}
-    //         </View>
-
-    //         {/* Business Section */}
-    //         {formData.accountType === "business" && (
-    //             <View className="bg-white rounded-3xl border border-gray-200 mb-6 overflow-hidden">
-    //                 <TouchableOpacity
-    //                     onPress={() => setShowBusiness(!showBusiness)}
-    //                     className="p-6 flex-row justify-between items-center"
-    //                 >
-    //                     <View>
-    //                         <Text className="text-xl font-semibold">Business Details</Text>
-    //                         <Text className="text-sm text-gray-500">Add multiple businesses</Text>
-    //                     </View>
-    //                     {showBusiness ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-    //                 </TouchableOpacity>
-
-    //                 {showBusiness && (
-    //                     <View className="px-6 pb-6">
-    //                         {formData.businesses.map((biz: any, index: number) => (
-    //                             <View key={index} className="border border-gray-200 rounded-2xl p-5 bg-gray-50 mb-6">
-    //                                 <View className="flex-row justify-between mb-4">
-    //                                     <Text className="font-semibold text-lg">Business {index + 1}</Text>
-    //                                     {formData.businesses.length > 1 && (
-    //                                         <TouchableOpacity onPress={() => removeBusiness(index)}>
-    //                                             <Trash2 size={22} color="red" />
-    //                                         </TouchableOpacity>
-    //                                     )}
-    //                                 </View>
-
-    //                                 <TextInput
-    //                                     placeholder="Business Name"
-    //                                     value={biz.businessName || ""}
-    //                                     onChangeText={(text) => handleBusinessChange(index, "businessName", text)}
-    //                                     className="border border-gray-300 rounded-2xl px-4 py-3 mb-3"
-    //                                 />
-
-    //                                 <TouchableOpacity
-    //                                     onPress={() => pickImage("businessCoverImage", index)}
-    //                                     className="border border-dashed border-gray-400 h-40 rounded-2xl items-center justify-center mb-4"
-    //                                 >
-    //                                     {preview.businessCoverImages[index] || biz.businessCoverImage ? (
-    //                                         <Image
-    //                                             source={{ uri: preview.businessCoverImages[index] || biz.businessCoverImage }}
-    //                                             className="w-full h-full rounded-2xl"
-    //                                             resizeMode="cover"
-    //                                         />
-    //                                     ) : (
-    //                                         <Text className="text-blue-600">Upload Cover Image</Text>
-    //                                     )}
-    //                                 </TouchableOpacity>
-
-    //                                 {/* Add other business fields similarly */}
-    //                             </View>
-    //                         ))}
-
-    //                         <TouchableOpacity
-    //                             onPress={addBusiness}
-    //                             className="border-2 border-dashed border-blue-500 py-5 rounded-2xl flex-row justify-center items-center"
-    //                         >
-    //                             <Plus size={24} color="#3b82f6" />
-    //                             <Text className="text-blue-600 font-medium ml-2">Add Another Business</Text>
-    //                         </TouchableOpacity>
-    //                     </View>
-    //                 )}
-    //             </View>
-    //         )}
-
-    //         {/* Password Section */}
-    //         <View className="bg-white p-6 rounded-3xl border border-gray-200 mb-6">
-    //             <Text className="text-xl font-semibold mb-6">Security</Text>
-    //             <View className="relative">
-    //                 <TextInput
-    //                     placeholder="New Password"
-    //                     secureTextEntry={!showPassword}
-    //                     value={formData.password || ""}
-    //                     onChangeText={(text) => handleChange("password", text)}
-    //                     className="border border-gray-300 rounded-2xl px-4 py-3 pr-12"
-    //                 />
-    //                 <TouchableOpacity
-    //                     onPress={() => setShowPassword(!showPassword)}
-    //                     className="absolute right-4 top-4"
-    //                 >
-    //                     {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
-    //                 </TouchableOpacity>
-    //             </View>
-    //         </View>
-
-    //         {/* Submit Button */}
-    //         <TouchableOpacity
-    //             onPress={handleSubmit}
-    //             disabled={isLoading}
-    //             className="bg-blue-600 py-4 rounded-3xl items-center mt-4"
-    //         >
-    //             {isLoading ? (
-    //                 <ActivityIndicator color="white" />
-    //             ) : (
-    //                 <Text className="text-white font-semibold text-lg">Save All Changes</Text>
-    //             )}
-    //         </TouchableOpacity>
-    //     </ScrollView>
-    // );
-
-
-
-
+    }, [user?._id]);
 
 
     return (
-    <ScrollView style={styles.container}>
-        <Text style={styles.headerTitle}>Profile Settings</Text>
-        <Text style={styles.headerSubtitle}>Update your personal and business information</Text>
+        <View style={styles.container}>
+            <LinearGradient colors={['#050510', '#0A0A1F']} style={StyleSheet.absoluteFill} />
 
-        {/* Cover + Profile Image */}
-        <View style={styles.card}>
-            <View style={styles.coverContainer}>
-                {preview.coverImage || formData.coverImage ? (
-                    <Image
-                        source={{ uri: preview.coverImage || formData.coverImage }}
-                        style={styles.coverImage}
-                        resizeMode="cover"
-                    />
-                ) : null}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                <TouchableOpacity
-                    onPress={() => pickImage("coverImage")}
-                    style={styles.changeCoverButton}
-                >
-                    <Text style={styles.changeCoverText}>Change Cover</Text>
-                </TouchableOpacity>
+                {/* Header */}
+                <View style={styles.headerRow}>
 
-                <View style={styles.profileImageContainer}>
-                    <View style={styles.profileImageWrapper}>
-                        {(preview.profileImage || formData.profileImage) ? (
+                    <TouchableOpacity onPress={() => router.replace("/(tabs)/profile")}>
+                        <ArrowLeft color={Colors.white} size={24} />
+                    </TouchableOpacity>
+
+                    <View>
+                        <Text style={styles.title}>Profile Settings</Text>
+                        <Text style={styles.subtitle}>
+                            Update your personal and business information
+                        </Text>
+                    </View>
+
+                </View>
+
+                {/* Cover + Profile Image */}
+                <View style={styles.imageSection}>
+                    <View style={styles.coverContainer}>
+                        <Image
+                            source={{ uri: preview.coverImage || formData.coverImage }}
+                            style={styles.coverImage}
+                            resizeMode="cover"
+                        />
+                        <TouchableOpacity style={styles.changeCoverBtn} onPress={() => pickImage('coverImage')}>
+                            <Upload color={Colors.white} size={18} />
+                            <Text style={styles.changeCoverText}>Change Cover</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.profileContainer}>
+                        <View style={styles.profileImageWrapper}>
                             <Image
                                 source={{ uri: preview.profileImage || formData.profileImage }}
                                 style={styles.profileImage}
-                                resizeMode="cover"
                             />
-                        ) : (
-                            <View style={styles.noPhotoContainer}>
-                                <Text style={styles.noPhotoText}>No Photo</Text>
-                            </View>
-                        )}
+                            <TouchableOpacity style={styles.cameraBtn} onPress={() => pickImage('profileImage')}>
+                                <Camera color={Colors.white} size={20} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-
-                    <TouchableOpacity
-                        onPress={() => pickImage("profileImage")}
-                        style={styles.cameraButton}
-                    >
-                        <Text style={styles.cameraIcon}>📸</Text>
-                    </TouchableOpacity>
                 </View>
-            </View>
-            <View style={styles.coverBottomSpace} />
-        </View>
 
-        {/* Account Type */}
-        <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Account Type</Text>
-            <View style={styles.accountTypeContainer}>
-                <TouchableOpacity
-                    onPress={() => { setAccountType("user"); setFormData({ ...formData, accountType: "user" }); }}
-                    style={[styles.accountTypeButton, accountType === "user" && styles.accountTypeButtonActive]}
-                >
-                    <Text style={[styles.accountTypeText, accountType === "user" && styles.accountTypeTextActive]}>
-                        Personal User
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => { setAccountType("business"); setFormData({ ...formData, accountType: "business" }); setShowBusiness(true); }}
-                    style={[styles.accountTypeButton, accountType === "business" && styles.accountTypeButtonActive]}
-                >
-                    <Text style={[styles.accountTypeText, accountType === "business" && styles.accountTypeTextActive]}>
-                        Business Account
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-
-        {/* Basic Information */}
-        <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Basic Information</Text>
-
-            <TextInput
-                placeholder="Full Name"
-                value={formData.fullName || ""}
-                onChangeText={(text) => handleChange("fullName", text)}
-                style={styles.input}
-            />
-
-            {/* Children Section */}
-            {formData.children?.map((child: any, index: number) => (
-                <View key={index} style={styles.childCard}>
-                    <Text style={styles.childTitle}>Child {index + 1}</Text>
-                    <TextInput
-                        placeholder="Child Name"
-                        value={child.name || ""}
-                        onChangeText={(text) => handleChildChange(index, "name", text)}
-                        style={styles.input}
-                    />
-                    <TextInput
-                        placeholder="Age"
-                        keyboardType="numeric"
-                        value={child.age?.toString() || ""}
-                        onChangeText={(text) => handleChildChange(index, "age", text)}
-                        style={styles.input}
-                    />
-                </View>
-            ))}
-        </View>
-
-        {/* Business Section */}
-        {formData.accountType === "business" && (
-            <View style={styles.card}>
-                <TouchableOpacity
-                    onPress={() => setShowBusiness(!showBusiness)}
-                    style={styles.businessHeader}
-                >
-                    <View>
-                        <Text style={styles.sectionTitle}>Business Details</Text>
-                        <Text style={styles.businessSubtitle}>Add multiple businesses</Text>
-                    </View>
-                    {showBusiness ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                </TouchableOpacity>
-
-                {showBusiness && (
-                    <View style={styles.businessContent}>
-                        {formData.businesses.map((biz: any, index: number) => (
-                            <View key={index} style={styles.businessCard}>
-                                <View style={styles.businessHeaderRow}>
-                                    <Text style={styles.businessTitle}>Business {index + 1}</Text>
-                                    {formData.businesses.length > 1 && (
-                                        <TouchableOpacity onPress={() => removeBusiness(index)}>
-                                            <Trash2 size={22} color="#ef4444" />
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-
-                                <TextInput
-                                    placeholder="Business Name"
-                                    value={biz.businessName || ""}
-                                    onChangeText={(text) => handleBusinessChange(index, "businessName", text)}
-                                    style={styles.input}
-                                />
-
-                                <TouchableOpacity
-                                    onPress={() => pickImage("businessCoverImage", index)}
-                                    style={styles.businessCoverUpload}
-                                >
-                                    {preview.businessCoverImages[index] || biz.businessCoverImage ? (
-                                        <Image
-                                            source={{ uri: preview.businessCoverImages[index] || biz.businessCoverImage }}
-                                            style={styles.businessCoverImage}
-                                            resizeMode="cover"
-                                        />
-                                    ) : (
-                                        <Text style={styles.uploadText}>Upload Cover Image</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-
-                        <TouchableOpacity onPress={addBusiness} style={styles.addBusinessButton}>
-                            <Plus size={24} color="#3b82f6" />
-                            <Text style={styles.addBusinessText}>Add Another Business</Text>
+                {/* Account Type */}
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Account Type</Text>
+                    <View style={styles.toggleContainer}>
+                        <TouchableOpacity
+                            style={[styles.toggleBtn, accountType === 'user' && styles.toggleActive]}
+                            onPress={() => { setAccountType('user'); handleChange('accountType', 'user'); }}
+                        >
+                            <Text style={[styles.toggleText, accountType === 'user' && styles.toggleActiveText]}>Personal</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.toggleBtn, accountType === 'business' && styles.toggleActive]}
+                            onPress={() => { setAccountType('business'); handleChange('accountType', 'business'); setShowBusiness(true); }}
+                        >
+                            <Text style={[styles.toggleText, accountType === 'business' && styles.toggleActiveText]}>Business</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+
+                {/* Basic Information */}
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Basic Information</Text>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Full Name</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.fullName} onChangeText={(v) => handleChange('fullName', v)} placeholder="Enter full name" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Date of Birth</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.dob ? new Date(formData.dob).toLocaleDateString() : ''} onChangeText={(v) => handleChange('dob', v)} placeholder="DD/MM/YYYY" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Occupation</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.occupation} onChangeText={(v) => handleChange('occupation', v)} placeholder="Your occupation" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Mobile Number</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.mobile} onChangeText={(v) => handleChange('mobile', v)} placeholder="+91 98765 43210" keyboardType="phone-pad" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Spouse Name (Optional)</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.spouseName} onChangeText={(v) => handleChange('spouseName', v)} placeholder="Enter spouse name" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Spouse Date of Birth (Optional)</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.spouseDob ? new Date(formData.spouseDob).toLocaleDateString() : ''} onChangeText={(v) => handleChange('spouseDob', v)} placeholder="DD/MM/YYYY" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Spouse Occupation (Optional)</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.spouseOccupation} onChangeText={(v) => handleChange('spouseOccupation', v)} placeholder="Your spouse's occupation" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Spouse Phone (Optional)</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.spouseMobile} onChangeText={(v) => handleChange('spouseMobile', v)} placeholder="+91 98765 43210" keyboardType="phone-pad" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Aniversary Date</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={new Date(formData.anniversaryDate).toLocaleDateString()} onChangeText={(v) => handleChange('anniversaryDate', v)} placeholder="DD/MM/YYYY" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Address</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.address} onChangeText={(v) => handleChange('address', v)} placeholder="Enter address" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>State</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.state} onChangeText={(v) => handleChange('state', v)} placeholder="Enter state" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Country</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput style={styles.input} value={formData.country} onChangeText={(v) => handleChange('country', v)} placeholder="Enter country" placeholderTextColor={Colors.gray500} />
+                        </View>
+                    </View>
+                    <View>
+                        <Text style={styles.emailTitle}>All Email Addresses</Text>
+
+                        <View style={{ gap: 12 }}>
+
+                            {/* User Email */}
+                            <View>
+                                <Text style={styles.label}>Email Address</Text>
+                                <View style={styles.inputWrap}>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.email || ""}
+                                        onChangeText={(v) => handleChange('email', v)}
+                                        placeholder="your@email.com"
+                                        placeholderTextColor={Colors.gray500}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Spouse Email */}
+                            <View>
+                                <Text style={styles.label}>Spouse Email (Optional)</Text>
+                                <View style={styles.inputWrap}>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.spouseEmail || ""}
+                                        onChangeText={(v) => handleChange('spouseEmail', v)}
+                                        placeholder="Enter spouse email"
+                                        placeholderTextColor={Colors.gray500}
+                                    />
+                                </View>
+                            </View>
+
+                        </View>
+                    </View>
+
+                    <View style={styles.checkboxCard}>
+                        <View style={styles.checkboxRow}>
+
+                            <TouchableOpacity disabled={true}>
+                                <View style={[
+                                    styles.checkbox,
+                                    formData.isVerified ? styles.checkboxChecked : null
+                                ]}>
+                                    {formData.isVerified && (
+                                        <Text style={styles.checkMark}>✓</Text>
+                                    )}
+                                </View>
+                            </TouchableOpacity>
+
+                            <Text style={styles.checkboxLabel}>
+                                Mark this profile as Verified
+                            </Text>
+
+                        </View>
+                    </View>
+
+
+
+                    {/* Children Section */}
+                    <Text style={styles.subSectionTitle}>Children</Text>
+
+                    {formData.children?.map((child: any, index: number) => (
+                        <View key={index} style={styles.childCard}>
+
+                            <View style={styles.childHeader}>
+                                <Text style={styles.childTitle}>Child {index + 1}</Text>
+                                <TouchableOpacity onPress={() => removeChild(index)}>
+                                    <Trash2 color={Colors.error} size={20} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Name Field */}
+                            <Text style={styles.label}>Child Name</Text>
+                            <TextInput
+                                style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, marginBottom: 12, padding: 12, borderRadius: 10 }]}
+                                placeholder="Enter name"
+                                placeholderTextColor={Colors.gray400}
+                                value={child.name}
+                                onChangeText={(v) => handleChildChange(index, 'name', v)}
+                            />
+
+                            {/* Age Field */}
+                            <Text style={styles.label}>Age</Text>
+                            <TextInput
+                                style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10 }]}
+                                placeholder="Enter age"
+                                placeholderTextColor={Colors.gray400}
+                                value={child.age?.toString()}
+                                onChangeText={(v) => handleChildChange(index, 'age', v)}
+                                keyboardType="numeric"
+                            />
+                        </View>
+                    ))}
+                    <TouchableOpacity style={styles.addBtn} onPress={addChild}>
+                        <Plus color={Colors.primary} size={20} />
+                        <Text style={styles.addBtnText}>Add Child</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Business Section */}
+                {accountType === "business" && (
+                    <View style={styles.card}>
+                        <TouchableOpacity style={styles.businessHeader} onPress={() => setShowBusiness(!showBusiness)}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Business Details</Text>
+                                <Text style={styles.subtitle}>Manage your businesses</Text>
+                            </View>
+                            {showBusiness ? <ChevronUp color={Colors.white} /> : <ChevronDown color={Colors.white} />}
+                        </TouchableOpacity>
+
+                        {showBusiness && (
+                            <>
+                                {formData.businesses.map((biz: any, index: number) => (
+                                    <View key={index} style={styles.businessCard}>
+
+                                        <View style={styles.businessHeaderRow}>
+                                            <Text style={styles.businessTitle}>Business {index + 1}</Text>
+                                            {formData.businesses.length > 1 && (
+                                                <TouchableOpacity onPress={() => removeBusiness(index)}>
+                                                    <Trash2 color={Colors.error} size={22} />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+
+                                        <TouchableOpacity onPress={() => pickImage('businessCoverImage', index)} style={styles.businessImageUpload}>
+                                            {preview.businessCoverImages[index] ? (
+                                                <Image source={{ uri: preview.businessCoverImages[index] }} style={styles.businessImage} />
+                                            ) : (
+                                                <Text style={styles.uploadText}>Upload Business Cover Image</Text>
+                                            )}
+                                        </TouchableOpacity>
+
+                                        {/* Business Name */}
+                                        <Text style={styles.label}>Business Name</Text>
+                                        <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            placeholder="Business Name"
+                                            value={biz.businessName}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessName', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+
+                                        {/* Category */}
+                                        <Text style={styles.label}>Category</Text>
+                                        <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            placeholder="Category"
+                                            value={biz.businessCategory}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessCategory', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+
+                                        {/* Website */}
+                                        <Text style={styles.label}>Website</Text>
+                                        <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            placeholder="Website"
+                                            value={biz.website}
+                                            onChangeText={(v) => handleBusinessChange(index, 'website', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+
+                                        {/* Phone */}
+                                        <Text style={styles.label}>Phone</Text>
+                                        <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            placeholder="Phone"
+                                            value={biz.businessPhone}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessPhone', v)}
+                                            keyboardType="phone-pad"
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+
+                                        {/* Description */}
+                                        <Text style={styles.label}>Description</Text>
+                                        <TextInput
+                                            style={[styles.input, { height: 100, borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            multiline
+                                            placeholder="Description"
+                                            value={biz.businessDescription}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessDescription', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+                                         <Text style={styles.label}>Address</Text>
+                                        <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            multiline
+                                            placeholder="Address"
+                                            value={biz.businessAddress}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessAddress', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+                                         <Text style={styles.label}>Working Hours</Text>
+                                          <TextInput
+                                            style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
+                                            multiline
+                                            placeholder="Working Hours"
+                                            value={biz.businessHours}
+                                            onChangeText={(v) => handleBusinessChange(index, 'businessHours', v)}
+                                            placeholderTextColor={Colors.gray500}
+                                        />
+                                           
+
+                                    </View>
+                                ))}
+
+                                <TouchableOpacity style={styles.addBtn} onPress={addBusiness}>
+                                    <Plus color={Colors.primary} size={20} />
+                                    <Text style={styles.addBtnText}>Add Another Business</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
                 )}
-            </View>
-        )}
 
-        {/* Password Section */}
-        <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Security</Text>
-            <View style={styles.passwordContainer}>
-                <TextInput
-                    placeholder="New Password"
-                    secureTextEntry={!showPassword}
-                    value={formData.password || ""}
-                    onChangeText={(text) => handleChange("password", text)}
-                    style={styles.input}
+                {/* Security */}
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Security</Text>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>New Password</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput
+                                style={styles.input}
+                                secureTextEntry={!showPassword}
+                                value={formData.password}
+                                onChangeText={(v) => handleChange('password', v)}
+                                placeholder="New password"
+                                placeholderTextColor={Colors.gray500}
+                            />
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <EyeOff color={Colors.gray500} /> : <Eye color={Colors.gray500} />}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Confirm New Password</Text>
+                        <View style={styles.inputWrap}>
+                            <TextInput
+                                style={styles.input}
+                                secureTextEntry={!showPassword}
+                                value={formData.confirmPassword}
+                                onChangeText={(v) => handleChange('confirmPassword', v)}
+                                placeholder="Confirm new password"
+                                placeholderTextColor={Colors.gray500}
+                            />
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <EyeOff color={Colors.gray500} /> : <Eye color={Colors.gray500} />}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Submit Button */}
+                <GradientButton
+                    label="Save All Changes"
+                    onPress={handleSubmit}
+                    loading={isLoading}
+                    size="lg"
+                    style={styles.submitButton}
                 />
-                <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIcon}
-                >
-                    {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
-                </TouchableOpacity>
-            </View>
+            </ScrollView>
         </View>
-
-        {/* Submit Button */}
-        <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isLoading}
-            style={styles.submitButton}
-        >
-            {isLoading ? (
-                <ActivityIndicator color="#fff" />
-            ) : (
-                <Text style={styles.submitButtonText}>Save All Changes</Text>
-            )}
-        </TouchableOpacity>
-    </ScrollView>
-);
-};
-
-
-
+    );
+}
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f9fafb',
-        padding: 16,
+    container: { flex: 1 },
+    scrollContent: { paddingBottom: 40 },
+
+    header: { padding: 24, paddingTop: 60 },
+    title: { color: Colors.white, fontSize: Typography.fontSizes['3xl'], fontWeight: 'bold' },
+    subtitle: { color: Colors.gray500, fontSize: Typography.fontSizes.base },
+    emailTitle: {
+        color: Colors.white,
+        fontSize: Typography.fontSizes.xl, // slightly bigger but responsive
+        fontWeight: Typography.fontWeights.bold,
+        marginBottom: 12,
     },
-    headerTitle: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#111827',
-        marginTop: 16,
-    },
-    headerSubtitle: {
-        fontSize: 16,
-        color: '#6b7280',
-        marginBottom: 24,
-    },
-    card: {
-        backgroundColor: '#fff',
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    coverContainer: {
-        height: 220,
-        backgroundColor: '#4f46e5',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    coverImage: {
-        width: '100%',
-        height: '100%',
-    },
-    changeCoverButton: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+    checkboxCard: {
+        backgroundColor: Colors.white,
+        paddingHorizontal: 24,
+        paddingVertical: 16,
         borderRadius: 16,
+        borderWidth: 1,
+        borderColor: Colors.gray200,
     },
-    changeCoverText: {
-        fontWeight: '600',
-        color: '#1f2937',
+
+    checkboxRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        opacity: 0.6, // like disabled pointer-events-none effect
     },
-    profileImageContainer: {
-        position: 'absolute',
-        bottom: -48,
-        left: 24,
+
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: Colors.gray300,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "transparent",
     },
-    profileImageWrapper: {
-        width: 112,
-        height: 112,
-        borderRadius: 24,
-        borderWidth: 4,
-        borderColor: '#fff',
-        backgroundColor: '#fff',
-        overflow: 'hidden',
-    },
-    profileImage: {
-        width: '100%',
-        height: '100%',
-    },
-    noPhotoContainer: {
-        flex: 1,
-        backgroundColor: '#e5e7eb',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    noPhotoText: {
-        color: '#9ca3af',
-    },
-    cameraButton: {
-        position: 'absolute',
-        bottom: 8,
-        right: 8,
-        backgroundColor: '#fff',
-        padding: 8,
-        borderRadius: 999,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 4,
-    },
-    cameraIcon: {
-        fontSize: 18,
-    },
-    coverBottomSpace: {
-        height: 56,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 16,
-    },
-    accountTypeContainer: {
+    headerRow: {
         flexDirection: 'row',
-        backgroundColor: '#f3f4f6',
-        borderRadius: 16,
-        padding: 4,
-    },
-    accountTypeButton: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 14,
         alignItems: 'center',
+        gap: 12,
+        padding: 24,
+        paddingTop: 60,
     },
-    accountTypeButtonActive: {
-        backgroundColor: '#fff',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
+
+    checkboxChecked: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
     },
-    accountTypeText: {
-        fontWeight: '600',
-        color: '#4b5563',
+
+    checkMark: {
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: "bold",
     },
-    accountTypeTextActive: {
-        color: '#111827',
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#d1d5db',
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        fontSize: 16,
-        marginBottom: 12,
-        backgroundColor: '#fff',
-    },
-    childCard: {
-        backgroundColor: '#f9fafb',
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-    },
-    childTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 12,
-        color: '#1f2937',
-    },
-    businessHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    businessSubtitle: {
+
+    checkboxLabel: {
+        color: Colors.gray700,
         fontSize: 14,
-        color: '#6b7280',
+        fontWeight: "500",
     },
-    businessContent: {
-        paddingTop: 8,
-    },
-    businessCard: {
-        backgroundColor: '#f9fafb',
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 16,
-    },
-    businessHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    businessTitle: {
-        fontSize: 18,
+    imageSection: { marginHorizontal: 24, marginBottom: 20 },
+    coverContainer: { height: 180, borderRadius: BorderRadius.xl, overflow: 'hidden', position: 'relative' },
+    coverImage: { width: '100%', height: '100%' },
+    changeCoverBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+    profileContainer: { alignItems: 'center', marginTop: -50 },
+    profileImageWrapper: { width: 110, height: 110, borderRadius: 55, borderWidth: 4, borderColor: Colors.dark.surface, overflow: 'hidden', position: 'relative' },
+    profileImage: { width: '100%', height: '100%' },
+    cameraBtn: { position: 'absolute', bottom: 4, right: 4, backgroundColor: Colors.primary, padding: 6, borderRadius: 20 },
+
+    card: { backgroundColor: Colors.dark.surface, marginHorizontal: 24, marginBottom: 20, borderRadius: BorderRadius.xl, padding: 20, borderWidth: 1, borderColor: Colors.dark.border },
+    sectionTitle: { color: Colors.white, fontSize: Typography.fontSizes.xl, fontWeight: 'bold', marginBottom: 16 },
+    subSectionTitle: { color: Colors.primary, fontSize: Typography.fontSizes.lg, marginVertical: 12 },
+
+    inputGroup: { marginBottom: 16 },
+    label: { color: Colors.white, fontSize: Typography.fontSizes.sm, marginBottom: 6, marginLeft: 4 },
+    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.dark.bg, borderRadius: BorderRadius.lg, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: Colors.dark.border },
+    input: { flex: 1, color: Colors.white, fontSize: Typography.fontSizes.base },
+
+    toggleContainer: { flexDirection: 'row', backgroundColor: Colors.dark.bg, borderRadius: 12, padding: 4 },
+    toggleBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
+    toggleActive: { backgroundColor: Colors.primary },
+    toggleText: { color: Colors.gray400 },
+    toggleActiveText: { color: Colors.white, fontWeight: '600' },
+
+    childCard: { backgroundColor: Colors.dark.bg, padding: 16, borderRadius: BorderRadius.lg, marginBottom: 12 },
+    childHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+
+    businessHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12 },
+    businessCard: { backgroundColor: Colors.dark.bg, padding: 16, borderRadius: BorderRadius.lg, marginBottom: 16 },
+    businessHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+    businessImageUpload: { height: 140, backgroundColor: Colors.dark.border, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+    businessImage: { width: '100%', height: '100%', borderRadius: BorderRadius.lg },
+
+    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderWidth: 1, borderColor: Colors.primary, borderStyle: 'dashed', borderRadius: BorderRadius.lg, marginTop: 8 },
+    addBtnText: {
+        color: Colors.primary,
         fontWeight: '600',
     },
-    businessCoverUpload: {
-        height: 160,
-        borderWidth: 2,
-        borderStyle: 'dashed',
-        borderColor: '#9ca3af',
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    businessCoverImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 14,
-    },
-    uploadText: {
-        color: '#3b82f6',
-        fontWeight: '600',
-    },
-    addBusinessButton: {
-        borderWidth: 2,
-        borderStyle: 'dashed',
-        borderColor: '#3b82f6',
-        borderRadius: 20,
-        paddingVertical: 20,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    addBusinessText: {
-        color: '#3b82f6',
-        fontWeight: '600',
-        marginLeft: 8,
-        fontSize: 16,
-    },
-    passwordContainer: {
-        position: 'relative',
-    },
-    eyeIcon: {
-        position: 'absolute',
-        right: 16,
-        top: 18,
-    },
+
     submitButton: {
-        backgroundColor: '#2563eb',
-        paddingVertical: 18,
-        borderRadius: 20,
-        alignItems: 'center',
-        marginTop: 12,
+        marginHorizontal: 24,
+        marginTop: 10,
     },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '700',
+
+    changeCoverText: {
+        color: Colors.white,
+        fontSize: Typography.fontSizes.sm,
+        fontWeight: Typography.fontWeights.medium,
+    },
+
+    childTitle: {
+        color: Colors.white,
+        fontSize: Typography.fontSizes.base,
+        fontWeight: Typography.fontWeights.semibold,
+    },
+
+    businessTitle: {
+        color: Colors.white,
+        fontSize: Typography.fontSizes.base,
+        fontWeight: Typography.fontWeights.semibold,
+    },
+
+    uploadText: {
+        color: Colors.gray400,
+        fontSize: Typography.fontSizes.sm,
+        textAlign: 'center',
     },
 });

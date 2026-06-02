@@ -1,6 +1,9 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-const initialState = {
+interface NewsState {
+  newsList: any[];
+}
+const initialState: NewsState = {
   newsList: []
 };
 
@@ -13,25 +16,25 @@ const newsSlice = createSlice({
       state.newsList = action.payload;
     },
     setNewNews: (state, action) => {
-      // const newItem = action.payload;
+      const newItem = action.payload;
 
-      // const index = state?.newsList?.findIndex(
-      //   (item) => item._id === newItem._id
-      // );
+      const index = state?.newsList?.findIndex(
+        (item) => item._id === newItem._id
+      );
 
-      // if (index !== -1) {
-      //   state.newsList[index] = newItem;
-      // } else {
-      //   state.newsList.unshift(newItem);
-      // }
+      if (index !== -1) {
+        state.newsList[index] = newItem;
+      } else {
+        state.newsList.unshift(newItem);
+      }
     },
 
    setRemoveNews: (state, action) => {
   const id = action.payload;
 
-  // state.newsList = state.newsList.filter(
-  //   (item) => item._id !== id
-  // );
+  state.newsList = state.newsList.filter(
+    (item) => item._id !== id
+  );
 }
   }
 });

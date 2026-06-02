@@ -40,8 +40,8 @@ export default function StoryBar({ onStoryPress, onAddStory }: Props) {
         if (!mounted) return;
         dispatch(setUserList(users));
         dispatch(setUserCount(users.length));
-      } catch (err) {
-        // silently ignore to avoid UI errors
+      } catch (err:any) {
+        console.log(err?.response?.data?.message);
       }
     };
 

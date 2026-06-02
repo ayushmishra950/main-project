@@ -6,13 +6,21 @@ import Avatar from '@/components/ui/Avatar';
 import { useApp } from '@/context/AppContext';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {useEffect} from "react";
+import { useAppDispatch } from '@/redux-toolkit/customHook/hook';
+import { Alert } from 'react-native';
+import { setDeletePostFromList } from '@/redux-toolkit/slice/postSlice';
+import { deletePostByUser } from '@/service/post';
+import ConfirmDialog from '@/components/forms/ConfirmDialog';
+import PostDialog from "@/components/forms/PostDialog";
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
 interface Post {
   id: string;
   user: any;
-  text: string;
+  title:string;
+  description: string;
+  type: "public" | "private",
   images: string[];
   likes: string[];
   comments: any[];
@@ -30,9 +38,18 @@ interface Props {
 }
 
 export default function PostCard({ post, onComment, onShare }: Props) {
+  const dispatch = useAppDispatch();
   const { toggleLike, toggleSave } = useApp();
   const heartScale = useRef(new Animated.Value(1)).current;
+  const [showMenu, setShowMenu] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePostData, setDeletePostData] = useState<Post | null>(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);  
+  const [initialData, setInitalData] = useState<Post | null>(null);
+  const [postListRefresh, setPostListRefresh] = useState<boolean>(false);
+
 
   useEffect(() => {
   const getUser = async () => {
@@ -47,6 +64,25 @@ export default function PostCard({ post, onComment, onShare }: Props) {
   getUser();
 }, []);
 
+ const handleDeletePost = async() => {
+    let obj = { postId: post?.id, userId: currentUserId };
+    try {
+      setDeleteLoading(true);
+      const res = await deletePostByUser(obj);
+      if (res?.status === 200) {
+        Alert.alert("Post Delete.", res?.data?.message);
+        dispatch(setDeletePostFromList({ postId: post?.id , userId: currentUserId }));
+        setDeleteDialogOpen(false);
+        setDeletePostData(null);
+      }
+    } catch (err:any) {
+      console.log(err?.response?.data?.message || err?.message);
+      Alert.alert("Post Delete Failed.", err?.response?.data?.message || err?.message);
+    }finally{
+      setDeleteLoading(false);
+    }
+   };
+
   const handleLike = () => {
     toggleLike(post.id);
     Animated.sequence([
@@ -59,8 +95,17 @@ export default function PostCard({ post, onComment, onShare }: Props) {
     if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
     return n.toString();
   };
-
+ const isOwner = post?.user?._id === currentUserId ;
   return (
+    <> 
+      <PostDialog
+        visible={showCreatePost}
+        onClose={() => setShowCreatePost(false)}
+        setPostListRefresh={setPostListRefresh}
+        initialData={initialData}
+      />
+
+    <ConfirmDialog visible={deleteDialogOpen}loading={deleteLoading} onConfirm={handleDeletePost} title="Delete Post" description="Are you sure you want to delete this post?" onClose={() => setDeleteDialogOpen(false)} buttonName="Delete" />
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
@@ -74,13 +119,40 @@ export default function PostCard({ post, onComment, onShare }: Props) {
             {post?.user?.fullName} · {post.timestamp}
           </Text>
         </View>
-        <TouchableOpacity style={styles.moreBtn}>
-          <MoreHorizontal color={Colors.gray400} size={20} />
+       {isOwner && (
+  <View style={{ position: "relative" }}>
+    <TouchableOpacity
+      style={styles.moreBtn}
+      onPress={() => setShowMenu(!showMenu)}
+    >
+      <MoreHorizontal color={Colors.gray400} size={20} />
+    </TouchableOpacity>
+
+    {showMenu && (
+      <View style={styles.dropdownMenu}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => { setInitalData(post); setShowCreatePost(true); setShowMenu(false); }}>
+          <Text style={styles.menuText}>Edit</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => { setDeletePostData(post); setDeleteDialogOpen(true); setShowMenu(false); }}
+        >
+          <Text style={[styles.menuText, { color: "#EF4444" }]}>
+            Delete
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )}
+  </View>
+)}
       </View>
  
       {/* Text */}
-      {post.text ? <Text style={styles.text}>{post.text}</Text> : null}
+        {post.title ? <Text style={styles.text}>{post.title}</Text> : null}
+      {post.description ? <Text style={styles.text}>{post.description}</Text> : null}
 
       {/* Tags */}
       {post.tags && post.tags.length > 0 && (
@@ -135,7 +207,7 @@ export default function PostCard({ post, onComment, onShare }: Props) {
 
           <TouchableOpacity style={styles.actionBtn} onPress={() => onShare?.(post)}>
             <Share2 color={Colors.gray400} size={22} />
-            <Text style={styles.actionCount}>{formatCount(post.shares)}</Text>
+            {/* <Text style={styles.actionCount}>{formatCount(post.shares)}</Text> */}
           </TouchableOpacity>
         </View>
 
@@ -148,6 +220,7 @@ export default function PostCard({ post, onComment, onShare }: Props) {
         </TouchableOpacity>
       </View>
     </View>
+    </>
   );
 }
 
@@ -163,6 +236,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
+  dropdownMenu: {
+  position: "absolute",
+  top: 30,
+  right: 0,
+  backgroundColor: Colors.dark.surface,
+  borderRadius: 10,
+  minWidth: 120,
+  borderWidth: 1,
+  borderColor: Colors.dark.border,
+  zIndex: 999,
+  elevation: 10,
+},
+
+menuItem: {
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+},
+
+menuText: {
+  color: Colors.white,
+  fontSize: 14,
+  fontWeight: "500",
+},
   headerInfo: {
     flex: 1,
     marginLeft: 12,
