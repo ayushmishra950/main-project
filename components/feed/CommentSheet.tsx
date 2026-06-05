@@ -110,7 +110,7 @@ export default function CommentSheet({ visible, post, onClose }: Props) {
 
   const renderComment = ({ item }: any) => (
     <View style={styles.commentRow}>
-      <Avatar uri={item?.user?.profileImage} size={36} />
+      <Avatar uri={item?.user?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={36} />
       <View style={styles.commentBubble}>
         <Text style={styles.commentUser}>{item?.user?.fullName}</Text>
         <Text style={styles.commentText}>{item?.text}</Text>
@@ -175,7 +175,7 @@ export default function CommentSheet({ visible, post, onClose }: Props) {
         {showReplies[item._id] &&
           item.replies?.map((r: any) => (
             <View key={r._id} style={styles.reply}>
-              <Avatar uri={r?.user?.profileImage} size={28} />
+              <Avatar uri={r?.user?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2d"} size={28} />
               <View style={[styles.commentBubble, { flex: 1 }]}>
                 <Text style={styles.commentUser}>{r?.user?.fullName}</Text>
                 <Text style={styles.commentText}>{r?.text}</Text>

@@ -19,7 +19,10 @@ export default function StoryBar({ onStoryPress, onAddStory }: Props) {
   const dispatch = useAppDispatch();
   const userList = useAppSelector((state) => state.user.userList);
   const [user, setUser] = useState<any>(null);
-
+  
+useEffect(() => {
+   console.log("StoryBar Mounted");
+}, []);
  useEffect(() => {
   const getUser = async () => {
     const userData = await AsyncStorage.getItem("user");
@@ -27,7 +30,10 @@ export default function StoryBar({ onStoryPress, onAddStory }: Props) {
       setUser(JSON.parse(userData));
     }
   };
-  getUser();
+
+  if(user === null){
+  getUser();  
+  }
 }, []);
 
   useEffect(() => {
@@ -50,18 +56,14 @@ export default function StoryBar({ onStoryPress, onAddStory }: Props) {
     return () => {
       mounted = false;
     };
-  }, [dispatch]);
+  }, []);
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll} >
         {/* Add Story */}
         <TouchableOpacity style={styles.storyItem} onPress={onAddStory}>
           <View style={styles.addStory}>
-            <Avatar uri={user?.profileImage || ''} size={56} />
+            <Avatar uri={user?.profileImage || 'https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2'} size={56} />
             <LinearGradient
               colors={Colors.gradients.primary as [string, string]} style={styles.addBtn}
             >
@@ -79,7 +81,7 @@ export default function StoryBar({ onStoryPress, onAddStory }: Props) {
             id: user._id,
             user: { 
               id: user._id,
-              avatar: user.profileImage || '', 
+              avatar: user.profileImage || 'https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2', 
               name: user.fullName || '' 
             },
             viewed: false,

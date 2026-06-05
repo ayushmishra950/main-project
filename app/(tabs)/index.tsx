@@ -1,9 +1,17 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, RefreshControl, Image, Modal, ScrollView, Dimensions, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Bell, Search, Users, MessageCircle, Grid2x2 as Grid, LogOut, Megaphone, Calendar, ChevronDown, Image as ImageIcon, Video, Send, BadgeCheck, User } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
+
+const topIcons = [
+  { icon: Users, label: 'Friends', route: '/friends' },
+  { icon: Grid, label: 'Directory', route: '/directory' },
+  { icon: Megaphone, label: 'News', route: '/announcements' },
+  { icon: Users, label: 'Groups', route: '/(tabs)/groups' },
+  { icon: Calendar, label: 'Events', route: '/(tabs)/events' },
+];
 import Avatar from '@/components/ui/Avatar';
 import StoryBar from '@/components/feed/StoryBar';
 import PostCard from '@/components/feed/PostCard';
@@ -19,8 +27,9 @@ import { setPostList } from '@/redux-toolkit/slice/postSlice';
 import PostDialog from '@/components/forms/PostDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ConfirmDialog from "@/components/forms/ConfirmDialog";
-import { getAllUser } from '@/service/auth';
-import { setUserCount, setUserList } from '@/redux-toolkit/slice/userSlice';
+import { getAllUser, getSingleUserDetail } from '@/service/auth';
+import { setUserCount, setUserData, setUserList } from '@/redux-toolkit/slice/userSlice';
+import { disconnectSocket } from '@/socket/socket';
 
 
 export default function HomeScreen() {
@@ -47,6 +56,26 @@ export default function HomeScreen() {
     user?.fullName?.toLowerCase()?.includes(searchText?.toLowerCase()) ||
     user?.email?.toLowerCase()?.includes(searchText?.toLowerCase())
   );
+
+
+   const handleGetSingle = async () => {
+    const userData = await AsyncStorage.getItem("user").then(res => res ? JSON.parse(res) : null);
+    const userId = userData?._id;
+    if (!userId) return;
+    try {
+      const res = await getSingleUserDetail(userId);
+      if (res.status === 200) {
+        dispatch(setUserData(res?.data));
+      };
+    } catch (err: any) {
+      console.log(err?.response?.data?.message || err?.message);
+    }
+  };
+  useEffect(() => {
+    handleGetSingle();
+  }, [userDatas]);
+
+
   const fetchUsers = async () => {
     try {
       const res = await getAllUser();
@@ -66,6 +95,7 @@ export default function HomeScreen() {
   const handleLogout = async () => {
     try {
       setLoading(true);
+      disconnectSocket()
       await AsyncStorage.removeItem('accessToken');
       setOpen(false);
       router.replace('/login');
@@ -104,86 +134,88 @@ export default function HomeScreen() {
     setTimeout(() => setRefreshing(false), 1200);
   }, []);
 
-  const topIcons = [
-    { icon: Users, label: 'Friends', route: '/friends' },
-    { icon: Grid, label: 'Directory', route: '/directory' },
-    { icon: Megaphone, label: 'News', route: '/announcements' },
-    { icon: Users, label: 'Groups', route: '/(tabs)/groups' },
-    { icon: Calendar, label: 'Events', route: '/(tabs)/events' },
-  ];
+  const handleStoryPress = useCallback((s: any) => {
+    router.push({ pathname: '/profile/[id]', params: { id: s.id } } as any);
+  }, []);
 
-  const renderHeader = () => {
+  const memoStoryBar = useMemo(() => (
+    <StoryBar onStoryPress={handleStoryPress} />
+  ), [handleStoryPress]);
+
+
+  const headerComponent = useMemo(() => {
     return (
       <View>
         {/* Top Bar */}
         <View style={styles.topBar}>
-          <View style={styles.searchRow}>
-            <Search color={Colors.gray500} size={18} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search Vibe..."
-              placeholderTextColor={Colors.gray500}
-              value={searchText}
-              onChangeText={(text) => { setSearchText(text); setShowSearchDropdown(text.trim().length > 0) }}
-            />
+          <View style={styles.searchWrapper}>
+            <View style={styles.searchRow}>
+              <Search color={Colors.gray500} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search Vibe..."
+                placeholderTextColor={Colors.gray500}
+                value={searchText}
+                onChangeText={(text) => { setSearchText(text); setShowSearchDropdown(text.trim().length > 0) }}
+              />
+            </View>
+            {
+              showSearchDropdown && (
+                <View style={styles.searchDropdown}>
+                  {
+                    filteredUsers?.length > 0 ? (
+                      filteredUsers.map((user: any) => (
+                        <TouchableOpacity
+                          key={user._id}
+                          style={styles.searchUserItem}
+                          onPress={() => {
+                            setSearchText("");
+                            setShowSearchDropdown(false);
+
+                            router.push({
+                              pathname: "/profile/[id]",
+                              params: { id: user._id },
+                            } as any);
+                          }}
+                        >
+                          <Avatar uri={user?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={40} />
+                          <View style={{ marginLeft: 10 }}>
+                            <Text style={styles.userName}>
+                              {user?.fullName}
+                            </Text>
+
+                            <Text style={styles.userUsername}>
+                              @{user?.email}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <View style={styles.notFoundContainer}>
+                        <Text style={styles.notFoundText}>
+                          No user found
+                        </Text>
+                      </View>
+                    )
+                  }
+                </View>
+              )
+            }
           </View>
-          {
-            showSearchDropdown && (
-              <View style={styles.searchDropdown}>
-                {
-                  filteredUsers?.length > 0 ? (
-                    filteredUsers.map((user: any) => (
-                      <TouchableOpacity
-                        key={user._id}
-                        style={styles.searchUserItem}
-                        onPress={() => {
-                          setSearchText("");
-                          setShowSearchDropdown(false);
-
-                          router.push({
-                            pathname: "/profile/[id]",
-                            params: { id: user._id },
-                          } as any);
-                        }}
-                      >
-                        <Avatar uri={user?.avatar} size={40} />
-
-                        <View style={{ marginLeft: 10 }}>
-                          <Text style={styles.userName}>
-                            {user?.fullName}
-                          </Text>
-
-                          <Text style={styles.userUsername}>
-                            @{user?.email}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <View style={styles.notFoundContainer}>
-                      <Text style={styles.notFoundText}>
-                        No user found
-                      </Text>
-                    </View>
-                  )
-                }
-              </View>
-            )
-          }
           <View style={styles.topIcons}>
-            <TouchableOpacity style={styles.topIconBtn} onPress={() => { }}>
+            {/* <TouchableOpacity style={styles.topIconBtn} onPress={() => { }}>
               <Bell color={Colors.gray300} size={22} />
               {notifCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{notifCount}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </TouchableOpacity> */} 
             <TouchableOpacity
               style={styles.avatarBtn}
               onPress={() => setShowDropdown(!showDropdown)}
             >
-              <Avatar uri={CURRENT_USER.avatar} size={32} />
+              <Avatar uri={userDatas?.user?.profileImage} size={32} />
               <ChevronDown color={Colors.gray400} size={14} />
             </TouchableOpacity>
           </View>
@@ -211,13 +243,11 @@ export default function HomeScreen() {
         </View>
 
         {/* Stories */}
-        <StoryBar
-          onStoryPress={(s) => router.push({ pathname: '/profile/[id]', params: { id: s.id } } as any)}
-        />
+        {memoStoryBar}
 
         {/* Create Post */}
         <View style={styles.createPost}>
-          <Avatar uri={CURRENT_USER.avatar} size={40} />
+          <Avatar uri={userDatas?.user?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={40} />
           <TouchableOpacity
             style={styles.createPostInput}
             onPress={() => setShowCreatePost(true)}
@@ -244,7 +274,7 @@ export default function HomeScreen() {
         {isNotApplied && <PremiumCard />}
       </View>
     )
-  };
+  }, [searchText, showSearchDropdown, filteredUsers, isNotApplied, handleStoryPress]);
 
   const renderItem = ({ item, index }: any) => {
     // Transform backend post structure to PostCard expected format
@@ -296,7 +326,7 @@ export default function HomeScreen() {
           data={loading ? [] : reduxPosts}
           keyExtractor={i => i._id}
           renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={headerComponent}
           ListEmptyComponent={loading ? renderSkeletons() : null}
           refreshControl={
             <RefreshControl
@@ -388,11 +418,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.bg,
     gap: 12,
   },
+  searchWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
   searchDropdown: {
     position: "absolute",
-    top: 60, // search bar ke niche
-    left: 15,
-    right: 15,
+    top: 56,
+    left: 0,
+    right: 0,
     backgroundColor: "#1E1E1E",
     borderRadius: 12,
     maxHeight: 300,

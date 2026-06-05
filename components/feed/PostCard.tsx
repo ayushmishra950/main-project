@@ -109,7 +109,7 @@ export default function PostCard({ post, onComment, onShare }: Props) {
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
-        <Avatar uri={post?.user?.profileImage || ''} size={44} isOnline={post?.user?.isOnline} />
+        <Avatar uri={post?.user?.profileImage || 'https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2'} size={44} isOnline={post?.user?.isOnline} />
         <View style={styles.headerInfo}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{post?.user?.fullName}</Text>

@@ -56,3 +56,17 @@ export const getSingleUserDetail = async(id:string) => {
   const res = await api.get(`/user/auth/get-by-id/${id}`);
   return res;
 };
+
+
+
+
+export const deleteUserRequest = async(id:string) => {
+    const res = await api.delete(`/user/auth/delete/user/${id}`);
+    return res;
+};
+
+
+export const recoverAccount = async(id:string) => {
+    const res = await api.patch(`/user/auth/recover/account/${id}`);
+    return res;
+}

@@ -183,7 +183,7 @@ export default function FriendsScreen() {
 
   const renderRequest = ({ item }: any) => (
     <View style={styles.card}>
-      <Avatar uri={item?.to?.profileImage || item?.from?.profileImage} size={56} isOnline={item?.user?.isOnline} />
+      <Avatar uri={item?.to?.profileImage || item?.from?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={56} isOnline={item?.user?.isOnline} />
       <View style={styles.cardInfo}>
         <Text style={styles.cardName}>{item?.to?.fullName || item?.from?.fullName}</Text>
         <Text style={styles.cardHandle}>{item?.to?.fullName || item?.from?.fullName}</Text>
@@ -218,7 +218,7 @@ export default function FriendsScreen() {
 
   const renderSuggestion = ({ item }: any) => (
     <View style={styles.card}>
-      <Avatar uri={item?.profileImage || "https://imgs.search.brave.com/y0NdN6PncgzSKFi7oLMhCK43L0tDZnjmV7sabdtYvXY/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9jb250/ZW50LnBleGVscy5j/b20vYWlnYy1idW5k/bGUvaW1hZ2VzLzg2/NGQwNmUyLTBiNjkt/NGZiMS05ODIyLWMx/MWFmNjkzN2IyZC5q/cGc"} size={56} isOnline={item?.user?.isOnline} />
+      <Avatar uri={item?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={56} isOnline={item?.user?.isOnline} />
       <View style={[styles.cardInfo, { flex: 1 }]}>
         <Text style={styles.cardName}>{item?.fullName}</Text>
         <Text style={styles.cardHandle}>{item?.fullName}</Text>
@@ -233,7 +233,7 @@ export default function FriendsScreen() {
 
   const renderFriend = ({ item }: any) => (
     <View style={styles.card}>
-      <Avatar uri={item?.profileImage} size={52} isOnline={item.isOnline} />
+      <Avatar uri={item?.profileImage || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={52} isOnline={item.isOnline} />
       <View style={[styles.cardInfo, { flex: 1 }]}>
         <Text style={styles.cardName}>{item?.fullName}</Text>
         <Text style={styles.cardHandle}>{item?.fullName}</Text>
@@ -283,12 +283,12 @@ export default function FriendsScreen() {
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
               {tab}
             </Text>
-            {tab === 'Requests' && requests?.length > 0 && (
+            {tab === 'Requests' && receivedRequestList?.length > 0 && (
               <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{requests?.length}</Text>
+                <Text style={styles.tabBadgeText}>{receivedRequestList?.length}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </TouchableOpacity> 
         ))}
       </View>
 

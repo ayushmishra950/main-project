@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Modal, TextInput, ActivityIndicator} from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Star, ThumbsUp, CreditCard as Edit, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,7 +11,7 @@ import { addReviews, getReviews, getGlobalReviews } from "@/service/review";
 import { useAppDispatch, useAppSelector } from "@/redux-toolkit/customHook/hook";
 import { setNewReview, setReviewList } from "@/redux-toolkit/slice/reviewSlice";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert} from "react-native";
+import { Alert } from "react-native";
 import { getSocket } from '@/socket/socket';
 
 
@@ -22,74 +22,74 @@ export default function ReviewScreen() {
   const [reviewText, setReviewText] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [user, setUser] = useState<any | null>(null)
-      const dispatch = useAppDispatch();
-    const reviews = useAppSelector((state) => state?.reviews?.reviewsList);
+  const dispatch = useAppDispatch();
+  const reviews = useAppSelector((state) => state?.reviews?.reviewsList);
 
-     useEffect(() => {
-      if(!socket) return;
-        socket.on("updateReview", (data: any) => {
-            console.log("updateReview", data);
-            dispatch(setNewReview(data));
-        });
+  useEffect(() => {
+    if (!socket) return;
+    socket.on("updateReview", (data: any) => {
+      console.log("updateReview", data);
+      dispatch(setNewReview(data));
+    });
 
-        return () => {
-            socket.off("updateReview");
-        }
-    }, [])
-   
+    return () => {
+      socket.off("updateReview");
+    }
+  }, [])
 
-       const handleSubmit = async () => {
-        if (!reviewText.trim() && !user?._id) return;
-        const obj = {
-            userId: user?._id,
-            message: reviewText,
-            rating: selectedRating,
-        };
-        try {
-            setIsLoading(true);
-            const res = await addReviews(obj);
-            if (res.status === 201) {
-              console.log("new review", res?.data?.review);
-              Alert.alert("Review send successfully.", res?.data?.message);
-                dispatch(setNewReview(res?.data?.review));
-                setShowWriteReview(false);
-                setReviewText("");
-            }
-        } catch (error: any) {
-            console.log(error); 
-            Alert.alert("Review send failed.", error?.response?.data?.message || error?.message);
-        }
-        finally {
-            setIsLoading(false);
-        }
+
+  const handleSubmit = async () => {
+    if (!reviewText.trim() && !user?._id) return;
+    const obj = {
+      userId: user?._id,
+      message: reviewText,
+      rating: selectedRating,
     };
+    try {
+      setIsLoading(true);
+      const res = await addReviews(obj);
+      if (res.status === 201) {
+        console.log("new review", res?.data?.review);
+        Alert.alert("Review send successfully.", res?.data?.message);
+        dispatch(setNewReview(res?.data?.review));
+        setShowWriteReview(false);
+        setReviewText("");
+      }
+    } catch (error: any) {
+      console.log(error);
+      Alert.alert("Review send failed.", error?.response?.data?.message || error?.message);
+    }
+    finally {
+      setIsLoading(false);
+    }
+  };
 
-   const getAllReviews = async () => {
-    if(!user?._id) return;
-        try {
-            const res = await getReviews(user?._id);
-            if (res.status === 200) {
-                dispatch(setReviewList(res?.data?.reviews));
-            }
-        } catch (error: any) {
-            console.log(error);
-        }
+  const getAllReviews = async () => {
+    if (!user?._id) return;
+    try {
+      const res = await getReviews(user?._id);
+      if (res.status === 200) {
+        dispatch(setReviewList(res?.data?.reviews));
+      }
+    } catch (error: any) {
+      console.log(error);
+    }
+  };
+
+  useEffect(() => {
+    if (reviews?.length === 0 && user?._id) {
+      getAllReviews();
+    }
+  }, [user?._id, reviews?.length]);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const userData = await AsyncStorage.getItem("user");
+      const user = userData ? JSON.parse(userData) : null;
+      setUser(user);
     };
-
-    useEffect(() => {
-        if (reviews?.length === 0 && user?._id) {
-            getAllReviews();
-        }
-    }, [user?._id, reviews?.length]);
-
-    useEffect(() => {
-      const getUser = async() => {
-        const userData = await AsyncStorage.getItem("user");
-        const user = userData ? JSON.parse(userData) : null;
-        setUser(user);
-      };
-      getUser();
-    },[])
+    getUser();
+  }, [])
 
   const avgRating = REVIEWS.reduce((s, r) => s + r.rating, 0) / REVIEWS.length;
   const ratingCounts = [5, 4, 3, 2, 1].map(r => ({
@@ -98,7 +98,7 @@ export default function ReviewScreen() {
   }));
 
   const renderStars = (rating: number, size = 16) =>
-    Array.from({ length: 5 }, (_, i) => ( 
+    Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
         color={i < rating ? Colors.warning : Colors.gray600}
@@ -110,67 +110,67 @@ export default function ReviewScreen() {
   const renderReview = ({ item }: any) => (
     <View style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
-        <Avatar uri={item?.user?.avatar} size={44} />
+        <Avatar uri={item?.user?.avatar || "https://imgs.search.brave.com/xCedoimthG97d8n6Aqc-6LyqR2Oa5N-3B_5XNwx_Hqc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy9h/L2FjL0RlZmF1bHRf/cGZwLmpwZz9fPTIw/MjAwNDE4MDkyMTA2"} size={44} />
         <View style={styles.reviewMeta}>
           <Text style={styles.reviewerName}>{item?.userId?.fullName || "You"}</Text>
           <View style={styles.reviewStars}>{renderStars(item?.rating, 14)}</View>
           <Text style={styles.reviewTimestamp}>{new Date(item?.createdAt).toLocaleString()}</Text>
         </View>
-       <View
-  style={[
-    styles.categoryLabel,
-    item?.status === "approved"
-      ? { backgroundColor: "#22c55e20" }
-      : item?.status === "rejected"
-      ? { backgroundColor: "#ef444420" }
-      : { backgroundColor: "#f59e0b20" }
-  ]}
->
-  <Text
-    style={[
-      styles.categoryLabelText,
-      item?.status === "approved"
-        ? { color: "#22c55e" }
-        : item?.status === "rejected"
-        ? { color: "#ef4444" }
-        : { color: "#f59e0b" }
-    ]}
-  >
-    {item?.status?.charAt(0).toUpperCase() + item?.status?.slice(1)}
-  </Text>
-</View>
+        <View
+          style={[
+            styles.categoryLabel,
+            item?.status === "approved"
+              ? { backgroundColor: "#22c55e20" }
+              : item?.status === "rejected"
+                ? { backgroundColor: "#ef444420" }
+                : { backgroundColor: "#f59e0b20" }
+          ]}
+        >
+          <Text
+            style={[
+              styles.categoryLabelText,
+              item?.status === "approved"
+                ? { color: "#22c55e" }
+                : item?.status === "rejected"
+                  ? { color: "#ef4444" }
+                  : { color: "#f59e0b" }
+            ]}
+          >
+            {item?.status?.charAt(0).toUpperCase() + item?.status?.slice(1)}
+          </Text>
+        </View>
       </View>
       <Text style={styles.reviewText}>{item?.message}</Text>
       {item?.adminReply && (
-  <View
-    style={{
-      marginTop: 10,
-      padding: 10,
-      borderRadius: 10,
-      backgroundColor: "rgba(59,130,246,0.1)",
-      borderWidth: 1,
-      borderColor: "rgba(59,130,246,0.3)",
-    }}
-  >
-    <Text
-      style={{
-        color: "#60a5fa",
-        fontWeight: "600",
-        marginBottom: 4,
-      }}
-    >
-      Admin Reply
-    </Text>
+        <View
+          style={{
+            marginTop: 10,
+            padding: 10,
+            borderRadius: 10,
+            backgroundColor: "rgba(59,130,246,0.1)",
+            borderWidth: 1,
+            borderColor: "rgba(59,130,246,0.3)",
+          }}
+        >
+          <Text
+            style={{
+              color: "#60a5fa",
+              fontWeight: "600",
+              marginBottom: 4,
+            }}
+          >
+            Admin Reply
+          </Text>
 
-    <Text
-      style={{
-        color: Colors.gray300,
-      }}
-    >
-      {item.adminReply}
-    </Text>
-  </View>
-)}
+          <Text
+            style={{
+              color: Colors.gray300,
+            }}
+          >
+            {item.adminReply}
+          </Text>
+        </View>
+      )}
 
     </View>
   );
@@ -191,7 +191,7 @@ export default function ReviewScreen() {
 
       <FlatList
         data={reviews}
-        keyExtractor={(r:any) => r?._id}
+        keyExtractor={(r: any) => r?._id}
         renderItem={renderReview}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -272,32 +272,32 @@ export default function ReviewScreen() {
               numberOfLines={5}
               textAlignVertical="top"
             />
-           <TouchableOpacity
-  style={{
-    margin: 16,
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  }}
-  onPress={handleSubmit}
-  disabled={!selectedRating || !reviewText.trim() || isLoading}
->
-  {isLoading ? (
-    <ActivityIndicator color="#fff" size="small" />
-  ) : (
-    <Text
-      style={{
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "600",
-      }}
-    >
-      Submit Review
-    </Text>
-  )}
-</TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                margin: 16,
+                backgroundColor: Colors.primary,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onPress={handleSubmit}
+              disabled={!selectedRating || !reviewText.trim() || isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                >
+                  Submit Review
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

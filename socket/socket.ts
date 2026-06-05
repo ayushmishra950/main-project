@@ -100,17 +100,30 @@ import { io, Socket } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "@/axios/axios";
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_BACKEND_SOCKET_URL!;
+const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_SOCKET_URL ?? process.env.EXPO_PUBLIC_BACKEND_URL;
+const SOCKET_URL = BASE_URL ? BASE_URL.replace(/\/$/, "").replace(/^http/, "ws") : "";
 
 let socket: Socket | null = null;
 let isRefreshing = false;
 
 export const initSocket = async (): Promise<Socket> => {
-  if (socket?.connected) {
-    return socket;
+  // if (socket?.connected) {
+  //   return socket;
+  // }
+
+  if (socket) {
+  if (!socket.connected) {
+    socket.connect();
   }
+  return socket;
+}
 
   const token = await AsyncStorage.getItem("accessToken");
+
+  if (!SOCKET_URL) {
+    console.log("❌ Socket URL missing. Set EXPO_PUBLIC_BACKEND_SOCKET_URL or EXPO_PUBLIC_BACKEND_URL.");
+    throw new Error("Socket URL is not defined.");
+  }
 
   socket = io(SOCKET_URL, {
     auth: {
@@ -207,5 +220,6 @@ export const disconnectSocket = () => {
     socket.removeAllListeners();
     socket.disconnect();
     socket = null;
+    console.log("socket disconnect successfully.")
   }
 };

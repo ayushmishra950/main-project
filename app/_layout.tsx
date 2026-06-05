@@ -95,7 +95,7 @@ export default function RootLayout() {
         if (token) {
           router.replace("/(tabs)");
         } else {
-          router.replace("/login");
+          router.replace("/onboarding");
         }
       } catch (error) {
         console.log("❌ Login Check Error:", error);

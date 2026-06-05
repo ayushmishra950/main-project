@@ -9,8 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSingleUser, updateUser } from '@/service/auth';
 import { ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { setUserData } from '@/redux-toolkit/slice/userSlice';
+import { useAppDispatch } from '@/redux-toolkit/customHook/hook';
 
 export default function UserProfileScreen() {
+    const dispatch = useAppDispatch();
     const [user, setUser] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -48,7 +51,10 @@ export default function UserProfileScreen() {
     };
 
     // Image Picker
-    const pickImage = async (name: string, businessIndex?: number) => {
+    const pickImage = async (
+        name: string,
+        businessIndex?: number
+    ) => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -56,23 +62,42 @@ export default function UserProfileScreen() {
         });
 
         if (!result.canceled && result.assets[0]) {
-            const uri = result.assets[0].uri;
+
+            const asset = result.assets[0];
 
             if (businessIndex !== undefined) {
+
                 const updatedBusinesses = [...formData.businesses];
+
                 updatedBusinesses[businessIndex] = {
                     ...updatedBusinesses[businessIndex],
-                    businessCoverImage: uri, // You can handle actual file later in FormData
+                    businessCoverImage: asset,
                 };
-                setFormData({ ...formData, businesses: updatedBusinesses });
+
+                setFormData({
+                    ...formData,
+                    businesses: updatedBusinesses,
+                });
 
                 setPreview({
                     ...preview,
-                    businessCoverImages: { ...preview.businessCoverImages, [businessIndex]: uri }
+                    businessCoverImages: {
+                        ...preview.businessCoverImages,
+                        [businessIndex]: asset.uri,
+                    },
                 });
+
             } else {
-                setFormData({ ...formData, [name]: uri });
-                setPreview({ ...preview, [name]: uri });
+
+                setFormData({
+                    ...formData,
+                    [name]: asset,
+                });
+
+                setPreview({
+                    ...preview,
+                    [name]: asset.uri,
+                });
             }
         }
     };
@@ -136,53 +161,87 @@ export default function UserProfileScreen() {
 
             const form = new FormData();
 
-            // Explicitly add userId from the logged-in user context or formData
             const finalUserId = user?._id || formData?._id || formData?.userId;
+
             if (finalUserId) {
                 form.append("userId", finalUserId);
             }
 
+            // Normal fields
             Object.keys(formData).forEach((key) => {
-                const excluded = ["businesses", "userId", "_id", "friends", "isOnline", "lastSeen", "role", "blocked", "children"];
-                if (!excluded.includes(key)) {
-                    if (formData[key] !== undefined && formData[key] !== null) {
-                        form.append(key, formData[key]);
+                const excluded = ["businesses", "children", "userId", "_id", "friends", "isOnline", "lastSeen", "role", "blocked", "profileImage", "coverImage"];
+
+                if (!excluded.includes(key) && formData[key] !== undefined && formData[key] !== null) {
+                    form.append(key, String(formData[key]));
+                }
+            });
+
+            // Profile Image
+            if (formData.profileImage && typeof formData.profileImage === "object" && formData.profileImage.uri) {
+                form.append("profileImage", {
+                    uri: formData.profileImage.uri,
+                    name: formData.profileImage.fileName || `profile-${Date.now()}.jpg`,
+                    type: formData.profileImage.mimeType || "image/jpeg",
+                } as any);
+            }
+            // Cover Image
+            if (formData.coverImage && typeof formData.coverImage === "object" && formData.coverImage.uri) {
+                form.append("coverImage", {
+                    uri: formData.coverImage.uri,
+                    name: formData.coverImage.fileName || `cover-${Date.now()}.jpg`,
+                    type: formData.coverImage.mimeType || "image/jpeg",
+                } as any);
+            }
+            // Children
+            form.append("children", JSON.stringify(formData.children || []));
+
+            // Businesses JSON
+            const businessesForJSON = formData.businesses.map(
+                (biz: any) => ({
+                    businessName: biz.businessName,
+                    businessCategory: biz.businessCategory,
+                    website: biz.website,
+                    businessDescription: biz.businessDescription,
+                    businessPhone: biz.businessPhone,
+                    workingHours: biz.workingHours,
+                    businessAddress: biz.businessAddress,
+                })
+            );
+
+            form.append(
+                "businesses",
+                JSON.stringify(businessesForJSON)
+            );
+
+            // Business Images
+            formData.businesses.forEach(
+                (biz: any, index: number) => {
+                    if (biz.businessCoverImage && typeof biz.businessCoverImage === "object" && biz.businessCoverImage.uri) {
+                        form.append(`businessCoverImage_${index}`,
+                            {
+                                uri: biz.businessCoverImage.uri,
+                                name: biz.businessCoverImage.fileName || `business-${index}.jpg`,
+                                type: biz.businessCoverImage.mimeType || "image/jpeg",
+                            } as any
+                        );
                     }
                 }
-            });
-            if (formData.children) {
-                form.append("children", JSON.stringify(formData.children));
-            }
-
-            // Clean businesses array for JSON (remove File objects to avoid {})
-            const businessesForJSON = formData.businesses.map((biz: any) => {
-                const bizCopy = { ...biz };
-                if (bizCopy.businessCoverImage instanceof File) {
-                    delete bizCopy.businessCoverImage;
-                }
-                return bizCopy;
-            });
-
-            form.append("businesses", JSON.stringify(businessesForJSON));
-
-            formData.businesses.forEach((biz: any, index: number) => {
-                if (biz.businessCoverImage instanceof File) {
-                    form.append(`businessCoverImage_${index}`, biz.businessCoverImage);
-                }
-            });
+            );
 
             const res = await updateUser(form);
 
             if (res.status === 200) {
                 const updatedUser = res.data.user;
+
                 if (updatedUser) {
                     await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+                    dispatch(setUserData(updatedUser));
                 }
                 Alert.alert("Profile Updated Successfully", res.data.message);
                 handleGetUser();
             }
         } catch (err: any) {
-            console.log(err?.response?.data?.message || err.message);
+            console.log(err?.response?.data?.message || err?.message);
             Alert.alert("Profile Update Failed", err?.response?.data?.message || err?.message);
         } finally {
             setIsLoading(false);
@@ -190,7 +249,7 @@ export default function UserProfileScreen() {
     };
 
     const handleGetUser = async () => {
-        if(!user?._id) return;
+        if (!user?._id) return;
         try {
             const res = await getSingleUser(user?._id);
             if (res.status === 200) {
@@ -214,7 +273,7 @@ export default function UserProfileScreen() {
                 setAccountType(data?.accountType || "user");
                 if (data.accountType === "business") setShowBusiness(true);
             }
-        } catch (err:any) {
+        } catch (err: any) {
             console.log(err?.response?.data?.message || err?.message);
         }
     };
@@ -502,14 +561,10 @@ export default function UserProfileScreen() {
                                                 </TouchableOpacity>
                                             )}
                                         </View>
-
-                                        <TouchableOpacity onPress={() => pickImage('businessCoverImage', index)} style={styles.businessImageUpload}>
-                                            {preview.businessCoverImages[index] ? (
-                                                <Image source={{ uri: preview.businessCoverImages[index] }} style={styles.businessImage} />
-                                            ) : (
-                                                <Text style={styles.uploadText}>Upload Business Cover Image</Text>
-                                            )}
-                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => pickImage("businessCoverImage", index)} style={styles.businessImageUpload} >
+                                            {(preview.businessCoverImages[index] ||
+                                                biz.businessCoverImage) ? (
+                                                <Image source={{ uri: preview.businessCoverImages[index] || biz.businessCoverImage, }} style={styles.businessImage} /> ) : ( <Text style={styles.uploadText}> Upload Business Cover Image </Text> )}  </TouchableOpacity>
 
                                         {/* Business Name */}
                                         <Text style={styles.label}>Business Name</Text>
@@ -519,7 +574,7 @@ export default function UserProfileScreen() {
                                             value={biz.businessName}
                                             onChangeText={(v) => handleBusinessChange(index, 'businessName', v)}
                                             placeholderTextColor={Colors.gray500}
-                                        />
+                                          />
 
                                         {/* Category */}
                                         <Text style={styles.label}>Category</Text>
@@ -562,7 +617,7 @@ export default function UserProfileScreen() {
                                             onChangeText={(v) => handleBusinessChange(index, 'businessDescription', v)}
                                             placeholderTextColor={Colors.gray500}
                                         />
-                                         <Text style={styles.label}>Address</Text>
+                                        <Text style={styles.label}>Address</Text>
                                         <TextInput
                                             style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
                                             multiline
@@ -571,8 +626,8 @@ export default function UserProfileScreen() {
                                             onChangeText={(v) => handleBusinessChange(index, 'businessAddress', v)}
                                             placeholderTextColor={Colors.gray500}
                                         />
-                                         <Text style={styles.label}>Working Hours</Text>
-                                          <TextInput
+                                        <Text style={styles.label}>Working Hours</Text>
+                                        <TextInput
                                             style={[styles.input, { borderWidth: 1, borderColor: Colors.dark.border, padding: 12, borderRadius: 10, marginVertical: 4 }]}
                                             multiline
                                             placeholder="Working Hours"
@@ -580,7 +635,7 @@ export default function UserProfileScreen() {
                                             onChangeText={(v) => handleBusinessChange(index, 'businessHours', v)}
                                             placeholderTextColor={Colors.gray500}
                                         />
-                                           
+
 
                                     </View>
                                 ))}

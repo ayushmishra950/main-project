@@ -8,7 +8,7 @@ import Avatar from '@/components/ui/Avatar';
 import PostCard from '@/components/feed/PostCard';
 import PremiumCard from '@/components/ui/PremiumCard';
 import { CURRENT_USER, POSTS, GALLERY_IMAGES, USERS } from '@/data/dummyData';
-import { getSingleUser } from "@/service/auth";
+import { deleteUserRequest, getSingleUser } from "@/service/auth";
 import { getAllPost } from '@/service/post';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setUserData } from "@/redux-toolkit/slice/userSlice";
@@ -17,6 +17,8 @@ import { useAppDispatch, useAppSelector } from "@/redux-toolkit/customHook/hook"
 import ConfirmDialog from "@/components/forms/ConfirmDialog";
 import { getSingleUserDetail } from "@/service/auth";
 import UserDialog from "@/components/forms/UserDialog";
+import { disconnectSocket } from '@/socket/socket';
+import { Alert } from 'react-native';
 
 
 const { width } = Dimensions.get('window');
@@ -29,7 +31,9 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('Posts');
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [user, setUser] = useState<any | null>();
   const userDatas = useAppSelector((state) => state?.user?.userData);
   const imageUrls = userDatas?.posts?.flatMap((post: any) => post.images || [])?.filter((url: string) => url.match(/\.(jpg|jpeg|png|webp|gif)$/i));
@@ -43,6 +47,21 @@ export default function ProfileScreen() {
     setMenuOpen(prev => !prev);
   };
 
+   const handleDeleteRequestUser = async () => {
+    try {
+      setDeleteLoading(true);
+      const res = await deleteUserRequest(userDatas?._id);
+      if (res.status === 200) {
+        Alert.alert("User Account Delete Request Send Successfully.", res?.data?.message);
+        setDeleteDialogOpen(false);
+        dispatch(setUserData(res?.data?.user))
+      }
+    } catch (err:any) {
+       Alert.alert("User Account Deletion Failed.", err?.response?.data?.message || err?.message)
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const handleGetSingle = async () => {
     const userData = await AsyncStorage.getItem("user").then(res => res ? JSON.parse(res) : null);
@@ -75,6 +94,7 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     try {
       setLoading(true);
+      disconnectSocket()
       await AsyncStorage.removeItem('accessToken');
       setOpen(false);
       router.replace('/login');
@@ -228,6 +248,15 @@ export default function ProfileScreen() {
 
   return (
     <>
+      <ConfirmDialog
+        visible={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        loading={deleteLoading}
+        title="Delete Your Account"
+        description="Are you sure you want to delete your account? This action is permanent and cannot be undone."
+        buttonName="Logout"
+        onConfirm={handleDeleteRequestUser}
+      />
       <ConfirmDialog
         visible={open}
         onClose={() => setOpen(false)}

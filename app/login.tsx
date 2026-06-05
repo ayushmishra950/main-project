@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Image} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, Zap } from 'lucide-react-native';
 import { Colors, Typography, BorderRadius } from '@/constants/theme';
 import GradientButton from '@/components/ui/GradientButton';
 import { useApp } from '@/context/AppContext';
-import {loginUser} from "@/service/auth";
+import { loginUser } from "@/service/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getSocket } from '@/socket/socket';
+import { getSocket, initSocket } from '@/socket/socket';
 import { Alert } from 'react-native';
 
 
 export default function LoginScreen() {
-   const socket = getSocket();
+  const socket = getSocket();
   const { setAuthenticated } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,31 +26,42 @@ export default function LoginScreen() {
       setError('Please fill in all fields');
       return;
     }
-    try{ 
-    setLoading(true);
-    const res = await loginUser({identifier:email, password});
-     if(res.status === 200){
-       await AsyncStorage.setItem("accessToken", res?.data?.accessToken);
+    try {
+      setLoading(true);
+      const res = await loginUser({ identifier: email, password, platform: "mobile" });
+      if (res.status === 200) {
+        await AsyncStorage.setItem("accessToken", res?.data?.accessToken);
+        if (res?.data?.refreshToken) {
+          await AsyncStorage.setItem("refreshToken", res?.data?.refreshToken);
+        }
         await AsyncStorage.setItem("user", JSON.stringify(res?.data?.data));
         Alert.alert("Login Successful", res?.data?.message || "You have logged in successfully.");
-        if(socket){
-          socket.emit("joinRoom", res?.data?.data?._id);
-        }
-       setAuthenticated(true);
-      router.replace('/(tabs)');
-      setError('');
-      setEmail('');
-      setPassword('');
-     }  
-    }catch(err:any){ 
-      console.log('Login error:', err?.response?.data?.message || err?.message); 
+
+        const socket = await initSocket();
+
+        socket.auth = {
+          token: res.data.accessToken,
+        };
+
+        socket.connect();
+
+        socket.emit("joinRoom", res.data.data._id);
+
+        setAuthenticated(true);
+        router.replace('/(tabs)');
+        setError('');
+        setEmail('');
+        setPassword('');
+      }
+    } catch (err: any) {
+      console.log('Login error:', err?.response?.data?.message || err?.message);
       Alert.alert("Login Failed", err.response?.data?.message || err?.message || 'Login failed');
       setError('');
     }
-    finally{
+    finally {
       setLoading(false);
     }
-  }; 
+  };
 
   return (
     <View style={styles.container}>

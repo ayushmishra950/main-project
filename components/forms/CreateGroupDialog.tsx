@@ -110,10 +110,7 @@ export default function CreateGroupModal({
       Alert.alert("Description is required");
       return;
     }
-
     try {
-
-
       const formData = new FormData();
       formData.append("title", title);
       formData.append("description", description);
