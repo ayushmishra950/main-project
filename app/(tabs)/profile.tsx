@@ -47,14 +47,18 @@ export default function ProfileScreen() {
     setMenuOpen(prev => !prev);
   };
 
+ 
    const handleDeleteRequestUser = async () => {
     try {
       setDeleteLoading(true);
       const res = await deleteUserRequest(userDatas?._id);
       if (res.status === 200) {
-        Alert.alert("User Account Delete Request Send Successfully.", res?.data?.message);
+        Alert.alert("User Account Delete Successfully.", res?.data?.message);
         setDeleteDialogOpen(false);
-        dispatch(setUserData(res?.data?.user))
+        disconnectSocket();
+        await AsyncStorage.removeItem('accessToken');
+        await AsyncStorage.removeItem('user');
+        router.replace('/login');
       }
     } catch (err:any) {
        Alert.alert("User Account Deletion Failed.", err?.response?.data?.message || err?.message)
