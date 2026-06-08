@@ -6,9 +6,10 @@ import Avatar from '@/components/ui/Avatar';
 import { Colors, Typography } from '@/constants/theme';
 import { CURRENT_USER } from '@/data/dummyData';
 import { getAllUser } from '@/service/auth';
-import { setUserList, setUserCount } from '@/redux-toolkit/slice/userSlice';
+import { setUserList, setUserCount, setRemoveUser } from '@/redux-toolkit/slice/userSlice';
 import { useAppDispatch, useAppSelector } from '@/redux-toolkit/customHook/hook';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSocket } from '@/socket/socket';
 
 interface Props {
   onStoryPress?: (story: any) => void;
@@ -17,11 +18,18 @@ interface Props {
 
 export default function StoryBar({ onStoryPress, onAddStory }: Props) {
   const dispatch = useAppDispatch();
+  const socket = getSocket();
   const userList = useAppSelector((state) => state.user.userList);
   const [user, setUser] = useState<any>(null);
   
 useEffect(() => {
-   console.log("StoryBar Mounted");
+   if(!socket) return;
+   socket.on("updateUserList",(data) => {
+    dispatch(setRemoveUser(data))
+   });
+   return () => {
+    socket.off("updateUserList")
+   }
 }, []);
  useEffect(() => {
   const getUser = async () => {

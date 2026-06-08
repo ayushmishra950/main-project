@@ -38,8 +38,28 @@ export default function FriendsScreen() {
     socket.on("unSeenFriendRequest", () => {
       handleGetFromAnToPendingRequest();
     })
+     socket.on("updateUserList", (data) => {
+  const userId = typeof data === "object" ? data?._id : data;
+
+  setFriendList((prev) =>
+    prev.filter((u:any) => u._id !== userId)
+  );
+
+  setSuggestedUsers((prev:any) =>
+    prev.filter((u:any) => u._id !== userId)
+  );
+
+  setSendRequestList((prev) =>
+    prev.filter((u:any) => u._id !== userId)
+  );
+
+  setReceivedRequestList((prev) =>
+    prev.filter((u:any) => u._id !== userId)
+  );
+});
     return () => {
-      socket.off("unSeenFriendRequest")
+      socket.off("unSeenFriendRequest");
+      socket.off("updateUserList");
     }
   }, []);
 
